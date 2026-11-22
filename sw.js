@@ -1,5 +1,5 @@
 // همسة · service worker: opens fast (saved copy of the app) and shows notifications when the app is closed.
-const CACHE = 'hamsa-v3';
+const CACHE = 'hamsa-v4';
 const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 

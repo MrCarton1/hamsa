@@ -18,11 +18,11 @@ const errText = e => { const m = (e && (e.message || e.error_description)) || St
   if (/Failed to fetch|NetworkError/i.test(m)) return 'ما فيه اتصال بالإنترنت';
   return m; };
 
-let me = null, profiles = new Map(), convs = [], members = new Map(), current = null, replyTo = null, msgsById = new Map(), urlCache = new Map();
+let me = null, nicks = new Map(), myPres = { visible: true, receipts: true }, profiles = new Map(), convs = [], members = new Map(), current = null, replyTo = null, msgsById = new Map(), urlCache = new Map();
 
 // ---------- theme ----------
 try { const t = localStorage.getItem('hamsa-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
-$('#themeBtn').onclick = () => { const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try { localStorage.setItem('hamsa-theme', t); } catch {} };
+const setTheme = t => { document.documentElement.dataset.theme = t; try { localStorage.setItem('hamsa-theme', t); } catch {} };
 
 // ---------- sign in / sign up ----------
 let mode = 'in';
@@ -41,9 +41,9 @@ $('#authForm').onsubmit = async e => {
     } else { const { error } = await sb.auth.signInWithPassword({ email, password: p }); if (error) throw error; }
   } catch (x) { msg.textContent = errText(x); } finally { btn.disabled = false; }
 };
-$('#logoutBtn').onclick = async () => { if (!confirm('تبي تسجل خروج؟')) return;
+async function logout() { if (!confirm('تبي تسجل خروج؟')) return; await presence({ viewing_conv: null, viewing_at: null });
   try { const reg = await navigator.serviceWorker?.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
-  await sb.auth.signOut(); };
+  await sb.auth.signOut(); }
 
 sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => session ? start(session.user) : stop(), 0); });
 
@@ -54,18 +54,20 @@ async function start(user) {
   me = p; profiles.set(p.id, p);
   $('#auth').hidden = true; $('#app').hidden = false;
   $('#meName').textContent = p.display_name; $('#meUser').textContent = '@' + p.username; avatar($('#meAvatar'), p.display_name, p.id);
-  await Promise.all([loadChats(), loadFriends()]); await live();
+  const [{ data: nk }, { data: pr }] = await Promise.all([sb.from('contact_names').select('target,name'), sb.from('presence').select('*').eq('user_id', p.id).maybeSingle()]);
+  nicks = new Map((nk || []).map(x => [x.target, x.name])); if (pr) myPres = { visible: pr.visible, receipts: pr.receipts };
+  await Promise.all([loadChats(), loadFriends()]); await live(); presence({ last_seen: new Date().toISOString() }); delivered();
   const want = new URLSearchParams(location.search).get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
   pushStart();
 }
-function stop() { me = null; current = null; convs = []; profiles.clear(); members.clear(); sb.removeAllChannels(); $('#app').hidden = true; $('#auth').hidden = false; $('#room').hidden = true; $('#empty').hidden = false; }
+function stop() { me = null; nicks = new Map(); current = null; convs = []; profiles.clear(); members.clear(); sb.removeAllChannels(); $('#app').hidden = true; $('#auth').hidden = false; $('#room').hidden = true; $('#empty').hidden = false; }
 
 // ---------- people ----------
 async function needProfiles(ids) {
   const miss = [...new Set(ids)].filter(i => i && !profiles.has(i)); if (!miss.length) return;
   const { data } = await sb.from('profiles').select('*').in('id', miss); (data || []).forEach(p => profiles.set(p.id, p));
 }
-const nameOf = id => (profiles.get(id) || {}).display_name || '…';
+const nameOf = id => nicks.get(id) || (profiles.get(id) || {}).display_name || '…';
 
 // ---------- chats list ----------
 async function loadChats() {
@@ -73,7 +75,7 @@ async function loadChats() {
   if (error) return toast(errText(error));
   const ids = (mine || []).map(m => m.conversation_id);
   members.clear();
-  if (ids.length) { const { data: all } = await sb.from('members').select('conversation_id,user_id,role').in('conversation_id', ids);
+  if (ids.length) { const { data: all } = await sb.from('members').select('conversation_id,user_id,role,delivered_at,seen_at,last_read').in('conversation_id', ids);
     (all || []).forEach(m => { if (!members.has(m.conversation_id)) members.set(m.conversation_id, []); members.get(m.conversation_id).push(m); });
     await needProfiles((all || []).map(m => m.user_id)); }
   convs = await Promise.all((mine || []).filter(m => m.conversations).map(async m => {
@@ -91,9 +93,9 @@ function renderChats() {
   const q = $('#search').value.trim().toLowerCase(), list = $('#chatList');
   const shown = convs.filter(c => !q || convTitle(c).toLowerCase().includes(q));
   list.innerHTML = shown.map(c => { const t = convTitle(c), other = c.is_group ? c.id : ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id;
-    const who = c.is_group && c.last && !c.last.deleted ? (c.last.sender_id === me.id ? 'أنت: ' : nameOf(c.last.sender_id) + ': ') : c.last && c.last.sender_id === me.id ? '✓ ' : '';
+    const mineLast = c.last && c.last.sender_id === me.id && !c.last.deleted, who = c.is_group && c.last && !c.last.deleted && !mineLast ? nameOf(c.last.sender_id) + ': ' : '';
     return `<li data-c="${c.id}" class="${current && current.id === c.id ? 'on' : ''}"><span class="av" style="background:${colorOf(other)}">${c.is_group ? '👥' : esc(t.charAt(0))}</span>
-<div class="mid"><b>${esc(t)}</b><small>${esc(who + preview(c.last))}</small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<br><span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
+<div class="mid"><b>${esc(t)}</b><small>${mineLast ? ticks(c.last, c.id) + ' ' : ''}${esc(who + preview(c.last))}</small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<br><span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
     || `<p class="hint" style="padding:18px">${q ? 'ما فيه نتائج' : 'ما عندك محادثات للحين. روح «الأصدقاء» وأضف صديق.'}</p>`;
   const u = convs.reduce((a, c) => a + c.unread, 0); $('#unreadAll').hidden = !u; $('#unreadAll').textContent = u;
 }
@@ -108,10 +110,10 @@ async function loadFriends() {
   const { data } = await sb.from('friendships').select('*').order('created_at', { ascending: false }); friends = data || [];
   await needProfiles(friends.flatMap(f => [f.requester, f.addressee]));
   const other = f => f.requester === me.id ? f.addressee : f.requester, row = (id, extra) => { const p = profiles.get(id) || {};
-    return `<div class="frow"><span class="av" style="background:${colorOf(id)}">${esc((p.display_name || '؟').charAt(0))}</span><div class="mid"><b>${esc(p.display_name)}</b><small dir="ltr">@${esc(p.username)}</small></div>${extra}</div>`; };
+    return `<div class="frow"><span class="av" style="background:${colorOf(id)}">${esc(nameOf(id).charAt(0))}</span><div class="mid"><b>${esc(nameOf(id))}</b><small><span dir="ltr">@${esc(p.username)}</span>${nicks.has(id) ? ' · ' + esc(p.display_name) : ''}</small></div>${extra}</div>`; };
   const inc = friends.filter(f => f.status === 'pending' && f.addressee === me.id), out = friends.filter(f => f.status === 'pending' && f.requester === me.id), acc = friends.filter(f => f.status === 'accepted');
   $('#friendsBox').innerHTML = (inc.length ? '<div class="sec">طلبات صداقة لك</div>' + inc.map(f => row(f.requester, `<button class="btn small primary" data-acc="${f.id}">قبول</button><button class="btn small danger" data-dec="${f.id}">رفض</button>`)).join('') : '')
-    + '<div class="sec">أصدقائي</div>' + (acc.map(f => row(other(f), `<button class="btn small primary" data-dm="${other(f)}">مراسلة</button><button class="btn small danger" data-rm="${f.id}" title="حذف الصديق">✕</button>`)).join('') || '<p class="hint">ما عندك أصدقاء للحين. اكتب اسم مستخدم صديقك فوق.</p>')
+    + '<div class="sec">أصدقائي</div>' + (acc.map(f => row(other(f), `<button class="btn small primary" data-dm="${other(f)}">مراسلة</button><button class="btn small" data-nick="${other(f)}" title="غيّر اسمه عندك">✏️</button><button class="btn small danger" data-rm="${f.id}" title="حذف الصديق">✕</button>`)).join('') || '<p class="hint">ما عندك أصدقاء للحين. اكتب اسم مستخدم صديقك فوق.</p>')
     + (out.length ? '<div class="sec">طلبات أرسلتها</div>' + out.map(f => row(f.addressee, `<button class="btn small" data-rm="${f.id}">إلغاء</button>`)).join('') : '');
   $('#reqCount').hidden = !inc.length; $('#reqCount').textContent = inc.length;
 }
@@ -131,6 +133,7 @@ $('#addFriend').onsubmit = async e => {
 $('#friendsBox').onclick = async e => { const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.acc) await sb.rpc('respond_friend', { fid: +b.dataset.acc, accept: true });
   if (b.dataset.dec) await sb.rpc('respond_friend', { fid: +b.dataset.dec, accept: false });
+  if (b.dataset.nick) return rename(b.dataset.nick);
   if (b.dataset.rm) { if (!confirm('متأكد؟')) return; await sb.from('friendships').delete().eq('id', +b.dataset.rm); }
   if (b.dataset.dm) { const { data, error } = await sb.rpc('start_dm', { other: b.dataset.dm }); if (error) return toast(errText(error)); await loadChats(); document.querySelector('.seg button[data-view=chats]').click(); return openChat(data); }
   loadFriends(); };
@@ -151,21 +154,20 @@ $('#infoBtn').onclick = () => {
   const addable = friends.filter(f => f.status === 'accepted').map(f => f.requester === me.id ? f.addressee : f.requester).filter(id => !ms.some(m => m.user_id === id));
   dialog(`<h3>${esc(convTitle(current))}</h3><div class="scroll">${ms.map(m => `<div class="frow" style="padding:6px 0"><span class="av" style="background:${colorOf(m.user_id)}">${esc(nameOf(m.user_id).charAt(0))}</span><div class="mid"><b>${esc(nameOf(m.user_id))}${m.user_id === me.id ? ' (أنت)' : ''}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username)}${m.role === 'admin' ? ' · مشرف' : ''}</small></div></div>`).join('')}</div>
 ${current.is_group && admin && addable.length ? `<div class="sec" style="padding:10px 0 4px">إضافة أعضاء</div>${addable.map(id => `<label class="chk"><input type="checkbox" value="${id}"> ${esc(nameOf(id))}</label>`).join('')}` : ''}
-<div class="row">${current.is_group ? '<button value="leave" class="btn danger">مغادرة القروب</button>' : ''}<button value="x" class="btn">إغلاق</button>${current.is_group && admin && addable.length ? '<button value="ok" class="btn primary">إضافة</button>' : ''}</div>`, async () => {
+<div class="row">${current.is_group ? '<button value="leave" class="btn danger">مغادرة القروب</button>' : '<button value="nick" class="btn">✏️ غيّر اسمه عندي</button>'}<button value="x" class="btn">إغلاق</button>${current.is_group && admin && addable.length ? '<button value="ok" class="btn primary">إضافة</button>' : ''}</div>`, async () => {
     for (const i of document.querySelectorAll('#dlgBody input[type=checkbox]:checked')) await sb.rpc('add_to_group', { c: current.id, uid: i.value });
     await loadChats(); openChat(current.id); });
-  const d = $('#dlg'), prev = d.onclose; d.onclose = async () => { if (d.returnValue === 'leave') { if (!confirm('تبي تطلع من القروب؟')) return; await sb.from('members').delete().eq('conversation_id', current.id).eq('user_id', me.id); closeChat(); loadChats(); } else prev(); };
+  const d = $('#dlg'), prev = d.onclose; d.onclose = async () => { if (d.returnValue === 'nick') return rename(((members.get(current.id) || []).find(m => m.user_id !== me.id) || {}).user_id); if (d.returnValue === 'leave') { if (!confirm('تبي تطلع من القروب؟')) return; await sb.from('members').delete().eq('conversation_id', current.id).eq('user_id', me.id); closeChat(); loadChats(); } else prev(); };
 };
 
 // ---------- a chat ----------
 async function openChat(id) {
   const c = convs.find(x => x.id === id); if (!c) return;
-  if (current && current.id !== id) sb.from('members').update({ viewing_at: null }).eq('conversation_id', current.id).eq('user_id', me.id).then(() => {});
   current = c; c.unread = 0; replyTo = null; $('#replyBox').hidden = true; msgsById.clear();
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
   const t = convTitle(c); $('#roomName').textContent = t; $('#roomAv').textContent = c.is_group ? '👥' : t.charAt(0);
   $('#roomAv').style.background = colorOf(c.is_group ? c.id : ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id);
-  $('#roomSub').textContent = c.is_group ? (members.get(c.id) || []).map(m => m.user_id === me.id ? 'أنت' : nameOf(m.user_id)).join('، ') : '@' + ((profiles.get(((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id) || {}).username || '');
+  $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
   renderChats(); $('#msgs').innerHTML = '<div class="day">جاري التحميل…</div>';
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return; if (error) return toast(errText(error));
@@ -175,7 +177,8 @@ async function openChat(id) {
 function closeChat() { viewing(false); current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
 $('#backBtn').onclick = closeChat;
 const scrollDown = () => { const b = $('#msgs'); b.scrollTop = b.scrollHeight; };
-async function markRead() { if (!current) return; const now = new Date().toISOString(); current.last_read = now; await sb.from('members').update({ last_read: now }).eq('conversation_id', current.id).eq('user_id', me.id); }
+async function markRead() { if (!current) return; const now = new Date().toISOString(); current.last_read = now;
+  await sb.from('members').update(myPres.receipts ? { last_read: now, delivered_at: now, seen_at: now } : { last_read: now, delivered_at: now }).eq('conversation_id', current.id).eq('user_id', me.id); }
 
 function msgHtml(m) {
   const mine = m.sender_id === me.id, q = m.reply_to && msgsById.get(m.reply_to);
@@ -184,7 +187,7 @@ function msgHtml(m) {
   if (!m.deleted && m.kind === 'voice') body = `<audio controls preload="none" data-media="${esc(m.media_path)}"></audio>`;
   return `${current.is_group && !mine ? `<div class="who" style="color:${colorOf(m.sender_id)}">${esc(nameOf(m.sender_id))}</div>` : ''}
 ${q ? `<div class="q" data-jump="${q.id}"><b>${esc(q.sender_id === me.id ? 'أنت' : nameOf(q.sender_id))}</b>: ${esc(q.deleted ? 'رسالة محذوفة' : preview(q))}</div>` : ''}
-<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? 'معدّلة · ' : ''}${fmtTime(m.created_at)}</div>
+<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? 'معدّلة · ' : ''}${fmtTime(m.created_at)}${mine && !m.deleted ? ' <span class="tick">' + ticks(m, current.id) + '</span>' : ''}</div>
 ${m.deleted ? '' : `<div class="tools"><button data-act="reply" title="رد">↩</button>${mine && m.kind === 'text' ? '<button data-act="edit" title="تعديل">✏️</button>' : ''}${mine ? '<button data-act="del" title="حذف">🗑</button>' : ''}${m.kind === 'text' ? '<button data-act="copy" title="نسخ">📋</button>' : ''}</div>`}`;
 }
 let lastDay = '';
@@ -265,7 +268,7 @@ async function live() {
   await sb.removeAllChannels();   // must finish first, or it also removes the new channel
   sb.channel('hamsa-live')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async ({ new: m }) => {
-      await needProfiles([m.sender_id]);
+      await needProfiles([m.sender_id]); if (m.sender_id !== me.id) delivered();
       if (current && current.id === m.conversation_id && !msgsById.has(m.id)) { const b = $('#msgs'), near = b.scrollHeight - b.scrollTop - b.clientHeight < 200; addMsg(m); if (near || m.sender_id === me.id) scrollDown(); if (!document.hidden) markRead(); }
       bumpConv(m);
     })
@@ -276,6 +279,9 @@ async function live() {
       if (eventType === 'UPDATE' && f.status === 'accepted' && f.requester === me.id) toast(`✅ ${nameOf(f.addressee)} قبل طلب صداقتك`);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'members', filter: `user_id=eq.${me.id}` }, () => loadChats())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, ({ new: r }) => {   // someone received / read: update the ticks
+      const list = members.get(r.conversation_id); const x = list && list.find(m => m.user_id === r.user_id); if (!x || r.user_id === me.id) return;
+      Object.assign(x, { delivered_at: r.delivered_at, seen_at: r.seen_at, last_read: r.last_read }); refreshTicks(r.conversation_id); })
     .subscribe();
 }
 
@@ -284,22 +290,96 @@ let lastSync = 0;
 async function resync() {
   if (!me || Date.now() - lastSync < 3000) return; lastSync = Date.now();
   const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') await live();
-  await Promise.all([loadChats(), loadFriends()]);
+  await Promise.all([loadChats(), loadFriends()]); delivered();
   if (current) {   // messages that arrived while the connection was asleep
     const lastId = Math.max(0, ...[...msgsById.keys()]);
     const { data } = await sb.from('messages').select('*').eq('conversation_id', current.id).gt('id', lastId).order('id');
     (data || []).forEach(m => { if (!msgsById.has(m.id)) addMsg(m); }); if (data && data.length) { scrollDown(); markRead(); }
   }
 }
-// tells the server "I have this chat open" so it does not send a phone notification for it
-async function viewing(on) {
-  if (!me) return; const c = current; if (!c) return;
-  await sb.from('members').update({ viewing_at: on ? new Date().toISOString() : null }).eq('conversation_id', c.id).eq('user_id', me.id);
+// presence: "online" and "inside this chat". The server also uses it to skip phone notifications for a chat you have open.
+async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
+const viewing = on => presence(on && current ? { last_seen: new Date().toISOString(), viewing_conv: current.id, viewing_at: new Date().toISOString() } : { last_seen: new Date().toISOString(), viewing_conv: null, viewing_at: null });
+setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 12000);
+// "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds)
+let delT = 0; function delivered() { if (!me || Date.now() - delT < 2000) return; delT = Date.now(); sb.from('members').update({ delivered_at: new Date().toISOString() }).eq('user_id', me.id).then(() => {}); }
+
+// ✓ sent · ✓✓ delivered · blue ✓✓ seen (by everyone in the chat)
+function ticks(m, convId) {
+  const others = (members.get(convId) || []).filter(x => x.user_id !== me.id), t = new Date(m.created_at).getTime(), at = v => v && new Date(v).getTime() >= t;
+  if (!others.length) return '<i class="t1">✓</i>';
+  if (myPres.receipts && others.every(x => at(x.seen_at))) return '<i class="t3" title="شافها">✓✓</i>';
+  if (others.every(x => at(x.delivered_at) || at(x.seen_at))) return '<i class="t2" title="وصلت">✓✓</i>';
+  return '<i class="t1" title="انرسلت">✓</i>';
 }
-setInterval(() => { if (current && !document.hidden) viewing(true); }, 12000);
+function refreshTicks(convId) {
+  if (current && current.id === convId) document.querySelectorAll('.m.mine').forEach(el => { const m = msgsById.get(+el.dataset.id), s = el.querySelector('.tick'); if (m && s) s.innerHTML = ticks(m, convId); });
+  renderChats();
+}
+
+// the line under the name: inside the chat now / online / last seen
+function subtitle(c) { return c.is_group ? (members.get(c.id) || []).map(m => m.user_id === me.id ? 'أنت' : nameOf(m.user_id)).join('، ') : '@' + ((profiles.get(((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id) || {}).username || ''); }
+const ago = d => { const s = (Date.now() - new Date(d)) / 1000; if (s < 3600) return `قبل ${Math.max(1, Math.round(s / 60))} دقيقة`; if (new Date(d).toDateString() === new Date().toDateString()) return 'اليوم ' + fmtTime(d); return fmtDay(d) + ' ' + fmtTime(d); };
+async function updateStatus() {
+  const c = current; if (!c || !me) return; const el = $('#roomSub');
+  if (!myPres.visible) { el.textContent = subtitle(c); el.className = ''; return; }   // you hide yours, so you don't see others'
+  const ids = (members.get(c.id) || []).map(m => m.user_id).filter(id => id !== me.id);
+  const { data } = await sb.from('presence').select('user_id,last_seen,viewing_conv,viewing_at').in('user_id', ids); if (current !== c) return;
+  const now = Date.now(), inChat = (data || []).filter(p => p.viewing_conv === c.id && p.viewing_at && now - new Date(p.viewing_at) < 30000), online = (data || []).filter(p => p.last_seen && now - new Date(p.last_seen) < 35000);
+  if (!c.is_group) {
+    const p = (data || [])[0];
+    el.textContent = inChat.length ? '● داخل المحادثة الحين' : online.length ? '● متصل' : p && p.last_seen ? 'آخر ظهور ' + ago(p.last_seen) : subtitle(c);
+    el.className = inChat.length ? 'live' : online.length ? 'on' : '';
+  } else {
+    el.textContent = inChat.length ? `● داخل المحادثة: ${inChat.map(p => nameOf(p.user_id)).join('، ')}` : online.length ? `● متصل: ${online.map(p => nameOf(p.user_id)).join('، ')}` : subtitle(c);
+    el.className = inChat.length ? 'live' : online.length ? 'on' : '';
+  }
+}
+setInterval(() => { if (current && !document.hidden) updateStatus(); }, 6000);
+
+// ---------- my own name for a person (only on my phone; they never know) ----------
+function rename(id) {
+  if (!id) return; const p = profiles.get(id) || {};
+  dialog(`<h3>اسمه عندك</h3><p class="muted">الاسم يتغير عندك بس. ${esc(p.display_name || '')} ما يدري ولا يشوف الاسم اللي تختاره.</p><input id="nickIn" maxlength="40" value="${esc(nicks.get(id) || '')}" placeholder="${esc(p.display_name || '')}">
+<div class="row">${nicks.has(id) ? '<button value="reset" class="btn">رجّع اسمه الأصلي</button>' : ''}<button value="x" class="btn">إلغاء</button><button value="ok" class="btn primary">حفظ</button></div>`, async () => {
+    const n = $('#nickIn').value.trim(); await sb.from('contact_names').delete().eq('target', id);
+    if (n && n !== p.display_name) { const { error } = await sb.from('contact_names').insert({ target: id, name: n }); if (error) return toast(errText(error)); nicks.set(id, n); } else nicks.delete(id);
+    afterRename(); toast('تم ✅'); });
+  const d = $('#dlg'), prev = d.onclose; d.onclose = async () => { if (d.returnValue === 'reset') { await sb.from('contact_names').delete().eq('target', id); nicks.delete(id); afterRename(); } else prev(); };
+}
+function afterRename() { loadFriends(); renderChats(); if (current) { $('#roomName').textContent = convTitle(current); $('#roomSub').textContent = subtitle(current); updateStatus(); document.querySelectorAll('.m').forEach(el => { const m = msgsById.get(+el.dataset.id); if (m) updateMsg(m); }); } }
+
+// ---------- settings ----------
+$('#settingsBtn').onclick = () => {
+  const dark = document.documentElement.dataset.theme !== 'light', notif = pushOK() && Notification.permission === 'granted';
+  dialog(`<h3>⚙️ الإعدادات</h3><div class="scroll set">
+<div class="sec">حسابي</div>
+<label>اسمك (يظهر لأصدقائك)<input id="sName" maxlength="40" value="${esc(me.display_name)}"></label>
+<p class="muted">اسم المستخدم: <span dir="ltr">@${esc(me.username)}</span> (ما يتغير)</p>
+<div class="sec">الإشعارات</div>
+<label class="chk"><input type="checkbox" id="sNotif" ${notif ? 'checked' : ''}> إشعارات الرسائل على جوالي</label>
+<div class="sec">الخصوصية</div>
+<label class="chk"><input type="checkbox" id="sVis" ${myPres.visible ? 'checked' : ''}> أصدقائي يشوفون إني متصل أو داخل المحادثة</label>
+<label class="chk"><input type="checkbox" id="sRec" ${myPres.receipts ? 'checked' : ''}> علامة القراءة الزرقاء ✓✓</label>
+<p class="muted">إذا قفلت وحدة منهم، أنت بعد ما تشوفها عند غيرك.</p>
+<div class="sec">المظهر</div>
+<label class="chk"><input type="radio" name="sTheme" value="dark" ${dark ? 'checked' : ''}> داكن</label><label class="chk"><input type="radio" name="sTheme" value="light" ${dark ? '' : 'checked'}> فاتح</label>
+<div class="sec">كلمة السر</div>
+<input id="sPass" type="password" dir="ltr" minlength="6" placeholder="كلمة سر جديدة (اتركها فاضية إذا ما تبي تغيرها)" autocomplete="new-password">
+</div><div class="row"><button value="logout" class="btn danger">تسجيل الخروج</button><button value="x" class="btn">إلغاء</button><button value="ok" class="btn primary">حفظ</button></div>`, async () => {
+    const name = $('#sName').value.trim(), vis = $('#sVis').checked, rec = $('#sRec').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
+    setTheme(theme);
+    if (name && name !== me.display_name) { const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id); if (error) return toast(errText(error)); me.display_name = name; profiles.set(me.id, me); $('#meName').textContent = name; avatar($('#meAvatar'), name, me.id); }
+    if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTicks(current.id); } }
+    if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
+    if (wantNotif && !notif) await enablePush();
+    if (!wantNotif && notif) { try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {} toast('وقفت الإشعارات على هالجوال'); }
+    toast('تم حفظ الإعدادات ✅'); });
+  const d = $('#dlg'), prev = d.onclose; d.onclose = () => d.returnValue === 'logout' ? logout() : prev();
+};
 setInterval(() => { if (me && !document.hidden) { const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') resync(); } }, 8000);
 setInterval(() => { if (me && !document.hidden) resync(); }, 45000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) viewing(false); else { if (current) { markRead(); viewing(true); } resync(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) viewing(false); else { if (current) { markRead(); updateStatus(); } viewing(!!current); delivered(); resync(); } });
 addEventListener('pagehide', () => viewing(false));
 addEventListener('online', () => resync());
 addEventListener('focus', () => resync());

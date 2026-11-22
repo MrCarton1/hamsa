@@ -76,3 +76,8 @@ dialog label.chk{display:flex;align-items:center;gap:10px;padding:6px 0}dialog .
 .pushbar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,168,132,.15);border-bottom:1px solid var(--line);font-size:13px}.pushbar span{flex:1}
 .steps{padding-inline-start:20px;line-height:2}
 @supports(padding:max(0px)){.composer{padding-bottom:max(8px,env(safe-area-inset-bottom))}.side>.bar,#room>.bar{padding-top:max(10px,env(safe-area-inset-top))}}
+#roomSub.on{color:var(--accent)}#roomSub.live{color:var(--accent);font-weight:700}
+.tick i{font-style:normal;letter-spacing:-3px;margin-inline-start:2px}.tick .t3,.list small .t3{color:#53bdeb}.t1,.t2{color:var(--muted)}
+.list small i{font-style:normal;letter-spacing:-3px}
+.set label:not(.chk){display:block;color:var(--muted);font-size:13px;margin:6px 0}.set .sec{padding:14px 0 4px}.set input:not([type=checkbox]):not([type=radio]){width:100%;margin-top:4px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+dialog input[type=checkbox],dialog input[type=radio]{width:20px;height:20px;margin:0;flex:none;accent-color:var(--accent)}dialog .set{max-height:60vh}
