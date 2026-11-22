@@ -1,7 +1,12 @@
 :root{--bg:#0b141a;--panel:#111b21;--bar:#202c33;--line:#2a3942;--text:#e9edef;--muted:#8696a0;--accent:#00a884;--mine:#005c4b;--theirs:#202c33;--chatbg:#0b141a;--danger:#f15c6d}
 :root[data-theme=light]{--bg:#eae6df;--panel:#fff;--bar:#f0f2f5;--line:#e9edef;--text:#111b21;--muted:#667781;--mine:#d9fdd3;--theirs:#fff;--chatbg:#efeae2}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--text);font:15px/1.5 Tahoma,"Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.5 Tahoma,"Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent;touch-action:manipulation;overscroll-behavior:none}
+/* 16px in every box you type in: phones zoom in on anything smaller */
+input,textarea,select{font-size:16px!important}
+button,.bar,.seg,.list li,.frow{-webkit-user-select:none;user-select:none}
+.msgs,#chatsView,#friendsView{overscroll-behavior:contain}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}input,textarea{font:inherit;color:var(--text)}
 [hidden]{display:none!important}
 .btn{padding:10px 16px;border-radius:10px;background:var(--bar)}.btn.primary{background:var(--accent);color:#fff;font-weight:700}.btn.small{padding:6px 10px;font-size:13px}.btn.danger{color:var(--danger)}

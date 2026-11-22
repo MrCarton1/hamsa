@@ -160,6 +160,7 @@ ${current.is_group && admin && addable.length ? `<div class="sec" style="padding
 // ---------- a chat ----------
 async function openChat(id) {
   const c = convs.find(x => x.id === id); if (!c) return;
+  if (current && current.id !== id) sb.from('members').update({ viewing_at: null }).eq('conversation_id', current.id).eq('user_id', me.id).then(() => {});
   current = c; c.unread = 0; replyTo = null; $('#replyBox').hidden = true; msgsById.clear();
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
   const t = convTitle(c); $('#roomName').textContent = t; $('#roomAv').textContent = c.is_group ? '👥' : t.charAt(0);
@@ -168,9 +169,10 @@ async function openChat(id) {
   renderChats(); $('#msgs').innerHTML = '<div class="day">جاري التحميل…</div>';
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return; if (error) return toast(errText(error));
-  $('#msgs').innerHTML = ''; (data || []).reverse().forEach(m => addMsg(m)); scrollDown(); markRead(); $('#text').focus();
+  $('#msgs').innerHTML = ''; (data || []).reverse().forEach(m => addMsg(m)); scrollDown(); markRead(); viewing(true);
+  if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
-function closeChat() { current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
+function closeChat() { viewing(false); current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
 $('#backBtn').onclick = closeChat;
 const scrollDown = () => { const b = $('#msgs'); b.scrollTop = b.scrollHeight; };
 async function markRead() { if (!current) return; const now = new Date().toISOString(); current.last_read = now; await sb.from('members').update({ last_read: now }).eq('conversation_id', current.id).eq('user_id', me.id); }
@@ -268,11 +270,39 @@ async function live() {
       bumpConv(m);
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, ({ new: m }) => { if (current && current.id === m.conversation_id) updateMsg(m); const c = convs.find(x => x.id === m.conversation_id); if (c && c.last && c.last.id === m.id) { c.last = m; renderChats(); } })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => loadFriends())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, async ({ eventType, new: f }) => {
+      await loadFriends();
+      if (eventType === 'INSERT' && f.addressee === me.id) toast(`📩 طلب صداقة جديد من ${nameOf(f.requester)}، شوفه في «الأصدقاء»`);
+      if (eventType === 'UPDATE' && f.status === 'accepted' && f.requester === me.id) toast(`✅ ${nameOf(f.addressee)} قبل طلب صداقتك`);
+    })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'members', filter: `user_id=eq.${me.id}` }, () => loadChats())
     .subscribe();
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && current) markRead(); });
+
+// ---------- staying up to date (phones pause the live connection in the background) ----------
+let lastSync = 0;
+async function resync() {
+  if (!me || Date.now() - lastSync < 3000) return; lastSync = Date.now();
+  const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') await live();
+  await Promise.all([loadChats(), loadFriends()]);
+  if (current) {   // messages that arrived while the connection was asleep
+    const lastId = Math.max(0, ...[...msgsById.keys()]);
+    const { data } = await sb.from('messages').select('*').eq('conversation_id', current.id).gt('id', lastId).order('id');
+    (data || []).forEach(m => { if (!msgsById.has(m.id)) addMsg(m); }); if (data && data.length) { scrollDown(); markRead(); }
+  }
+}
+// tells the server "I have this chat open" so it does not send a phone notification for it
+async function viewing(on) {
+  if (!me) return; const c = current; if (!c) return;
+  await sb.from('members').update({ viewing_at: on ? new Date().toISOString() : null }).eq('conversation_id', c.id).eq('user_id', me.id);
+}
+setInterval(() => { if (current && !document.hidden) viewing(true); }, 12000);
+setInterval(() => { if (me && !document.hidden) { const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') resync(); } }, 8000);
+setInterval(() => { if (me && !document.hidden) resync(); }, 45000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) viewing(false); else { if (current) { markRead(); viewing(true); } resync(); } });
+addEventListener('pagehide', () => viewing(false));
+addEventListener('online', () => resync());
+addEventListener('focus', () => resync());
 
 // first screen
 sb.auth.getSession().then(({ data }) => { if (!data.session) { $('#auth').hidden = false; } });
