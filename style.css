@@ -68,3 +68,6 @@ dialog label.chk{display:flex;align-items:center;gap:10px;padding:6px 0}dialog .
   .app.open .side{display:none}.app.open .chat{display:flex}
   .back{display:block}.msgs{padding:10px}
 }
+.pushbar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,168,132,.15);border-bottom:1px solid var(--line);font-size:13px}.pushbar span{flex:1}
+.steps{padding-inline-start:20px;line-height:2}
+@supports(padding:max(0px)){.composer{padding-bottom:max(8px,env(safe-area-inset-bottom))}.side>.bar,#room>.bar{padding-top:max(10px,env(safe-area-inset-top))}}

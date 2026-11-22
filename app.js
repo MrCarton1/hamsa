@@ -41,7 +41,9 @@ $('#authForm').onsubmit = async e => {
     } else { const { error } = await sb.auth.signInWithPassword({ email, password: p }); if (error) throw error; }
   } catch (x) { msg.textContent = errText(x); } finally { btn.disabled = false; }
 };
-$('#logoutBtn').onclick = async () => { if (confirm('تبي تسجل خروج؟')) await sb.auth.signOut(); };
+$('#logoutBtn').onclick = async () => { if (!confirm('تبي تسجل خروج؟')) return;
+  try { const reg = await navigator.serviceWorker?.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
+  await sb.auth.signOut(); };
 
 sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => session ? start(session.user) : stop(), 0); });
 
@@ -53,6 +55,8 @@ async function start(user) {
   $('#auth').hidden = true; $('#app').hidden = false;
   $('#meName').textContent = p.display_name; $('#meUser').textContent = '@' + p.username; avatar($('#meAvatar'), p.display_name, p.id);
   await Promise.all([loadChats(), loadFriends()]); await live();
+  const want = new URLSearchParams(location.search).get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
+  pushStart();
 }
 function stop() { me = null; current = null; convs = []; profiles.clear(); members.clear(); sb.removeAllChannels(); $('#app').hidden = true; $('#auth').hidden = false; $('#room').hidden = true; $('#empty').hidden = false; }
 
@@ -216,6 +220,7 @@ async function send(row) {
   const { data, error } = await sb.from('messages').insert(r).select().single(); if (error) return toast('ما انرسلت: ' + errText(error));
   if (!msgsById.has(data.id) && current && current.id === data.conversation_id) { addMsg(data); scrollDown(); }
   bumpConv(data);
+  sb.functions.invoke('push', { body: { message_id: data.id } }).catch(() => {});   // notify the others' phones
 }
 $('#composer').onsubmit = e => { e.preventDefault(); const t = ta.value.trim(); if (!t) return; ta.value = ''; ta.oninput(); send({ kind: 'text', body: t }); };
 async function upload(blob, ext, type) {
@@ -261,7 +266,6 @@ async function live() {
       await needProfiles([m.sender_id]);
       if (current && current.id === m.conversation_id && !msgsById.has(m.id)) { const b = $('#msgs'), near = b.scrollHeight - b.scrollTop - b.clientHeight < 200; addMsg(m); if (near || m.sender_id === me.id) scrollDown(); if (!document.hidden) markRead(); }
       bumpConv(m);
-      if (m.sender_id !== me.id && document.hidden && 'Notification' in window && Notification.permission === 'granted') new Notification(nameOf(m.sender_id), { body: preview(m), icon: 'icon.svg' });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, ({ new: m }) => { if (current && current.id === m.conversation_id) updateMsg(m); const c = convs.find(x => x.id === m.conversation_id); if (c && c.last && c.last.id === m.id) { c.last = m; renderChats(); } })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => loadFriends())
@@ -269,7 +273,52 @@ async function live() {
     .subscribe();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && current) markRead(); });
-document.addEventListener('click', () => { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
 
 // first screen
 sb.auth.getSession().then(({ data }) => { if (!data.session) { $('#auth').hidden = false; } });
+
+// ---------- install as an app + phone notifications ----------
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushOK = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data && e.data.open && me) openChat(e.data.open); });
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#installBtn').hidden = false; });
+addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('تم تثبيت همسة ✅'); });
+if (isIOS && !installed()) $('#installBtn').hidden = false;
+const iosHelp = () => dialog(`<h3>ثبّت همسة على جوالك</h3><ol class="steps"><li>افتح هالصفحة في <b>Safari</b>.</li><li>اضغط زر المشاركة <b>⬆️</b> تحت.</li><li>اختر <b>«إضافة إلى الشاشة الرئيسية»</b> ثم <b>إضافة</b>.</li><li>افتح همسة من الأيقونة الجديدة، وفعّل الإشعارات 🔔.</li></ol><p class="muted">في الآيفون الإشعارات تشتغل بس بعد ما تثبّته بهالطريقة.</p><div class="row"><button value="x" class="btn primary">تمام</button></div>`);
+$('#installBtn').onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#installBtn').hidden = true; } else if (isIOS) iosHelp(); };
+
+const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
+async function subscribe(quiet) {
+  const reg = await navigator.serviceWorker.ready;
+  const { publicKey } = await fetch(HAMSA.url + '/functions/v1/push', { headers: { apikey: HAMSA.key } }).then(r => r.json());
+  let sub = await reg.pushManager.getSubscription();
+  for (let i = 0; i < 2; i++) {
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(publicKey) });
+    const j = sub.toJSON(); await sb.from('push_subscriptions').delete().eq('endpoint', j.endpoint);
+    const { error } = await sb.from('push_subscriptions').insert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth });
+    if (!error) break;
+    await sub.unsubscribe(); sub = null;   // this browser was linked to another account: make a fresh link
+    if (i) throw error;
+  }
+  bell(); if (!quiet) toast('تم تفعيل الإشعارات ✅ بتوصلك الرسائل حتى والتطبيق مقفل');
+}
+async function enablePush() {
+  if (!pushOK()) return isIOS && !installed() ? iosHelp() : toast('هالمتصفح ما يدعم الإشعارات');
+  const p = await Notification.requestPermission();
+  if (p !== 'granted') { bell(); return toast('الإشعارات مقفلة. فعّلها من إعدادات المتصفح لهالموقع'); }
+  try { await subscribe(false); } catch (x) { toast('ما قدرت أفعّل الإشعارات: ' + errText(x)); }
+  $('#pushBar').hidden = true;
+}
+function bell() { const on = pushOK() && Notification.permission === 'granted'; $('#bellBtn').textContent = on ? '🔔' : '🔕'; $('#bellBtn').title = on ? 'الإشعارات شغالة' : 'فعّل الإشعارات'; }
+$('#bellBtn').onclick = () => Notification.permission === 'granted' ? subscribe(false).catch(x => toast(errText(x))) : enablePush();
+$('#pushYes').onclick = enablePush;
+$('#pushNo').onclick = () => { $('#pushBar').hidden = true; try { localStorage.setItem('hamsa-push-later', Date.now()); } catch {} };
+function pushStart() {
+  bell(); if (!pushOK()) { if (isIOS && !installed()) $('#pushBar').hidden = true; return; }
+  if (Notification.permission === 'granted') return subscribe(true).catch(() => {});
+  let later = 0; try { later = +localStorage.getItem('hamsa-push-later') || 0; } catch {}
+  $('#pushBar').hidden = Notification.permission === 'denied' || Date.now() - later < 3 * 864e5;
+}
