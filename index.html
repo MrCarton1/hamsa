@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b141a">
+<title>همسة</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- sign in / sign up -->
+<section id="auth" class="auth" hidden>
+  <div class="auth-card">
+    <img src="icon.svg" alt="" class="logo">
+    <h1>همسة</h1>
+    <p class="muted">تواصل مع أهلك وأصحابك</p>
+    <div class="tabs"><button class="on" data-mode="in">تسجيل الدخول</button><button data-mode="up">حساب جديد</button></div>
+    <form id="authForm" autocomplete="on">
+      <label class="up">اسمك (يظهر للناس)<input id="fName" maxlength="40" autocomplete="name"></label>
+      <label>اسم المستخدم (إنجليزي)<input id="fUser" dir="ltr" maxlength="20" autocomplete="username" placeholder="ahmed_01" required></label>
+      <label>كلمة السر<input id="fPass" type="password" dir="ltr" minlength="6" autocomplete="current-password" required></label>
+      <button class="btn primary" id="authBtn">دخول</button>
+      <p id="authMsg" class="err"></p>
+    </form>
+  </div>
+</section>
+
+<!-- the app -->
+<main id="app" class="app" hidden>
+  <aside id="side" class="side">
+    <header class="bar">
+      <div class="me"><span id="meAvatar" class="av"></span><div><b id="meName"></b><small id="meUser" dir="ltr"></small></div></div>
+      <div class="icons"><button id="newGroupBtn" title="قروب جديد">👥</button><button id="themeBtn" title="الوضع الفاتح/الداكن">🌓</button><button id="logoutBtn" title="تسجيل الخروج">⎋</button></div>
+    </header>
+    <nav class="seg"><button class="on" data-view="chats">المحادثات <span id="unreadAll" class="pill" hidden></span></button><button data-view="friends">الأصدقاء <span id="reqCount" class="pill" hidden></span></button></nav>
+    <div id="chatsView">
+      <input id="search" class="search" placeholder="🔍 ابحث في المحادثات">
+      <ul id="chatList" class="list"></ul>
+    </div>
+    <div id="friendsView" hidden>
+      <form id="addFriend" class="add"><input id="addUser" dir="ltr" placeholder="اسم المستخدم لصديقك" maxlength="20"><button class="btn primary">إضافة</button></form>
+      <p id="addMsg" class="hint"></p>
+      <div id="friendsBox"></div>
+    </div>
+  </aside>
+
+  <section id="chat" class="chat">
+    <div id="empty" class="empty"><img src="icon.svg" alt=""><h2>همسة</h2><p>اختر محادثة، أو أضف صديق من «الأصدقاء» وابدأ تسولف.</p></div>
+    <div id="room" hidden>
+      <header class="bar">
+        <button id="backBtn" class="back">→</button>
+        <span id="roomAv" class="av"></span>
+        <div class="title"><b id="roomName"></b><small id="roomSub"></small></div>
+        <div class="icons"><button id="infoBtn" title="معلومات">ⓘ</button></div>
+      </header>
+      <div id="msgs" class="msgs"></div>
+      <div id="replyBox" class="replybox" hidden><div><b>رد على</b> <span id="replyText"></span></div><button id="replyX">✕</button></div>
+      <form id="composer" class="composer">
+        <button type="button" id="attachBtn" title="صورة">📎</button>
+        <input type="file" id="fileIn" accept="image/*" hidden>
+        <textarea id="text" rows="1" placeholder="اكتب رسالة" maxlength="4000"></textarea>
+        <button type="button" id="micBtn" title="رسالة صوتية">🎤</button>
+        <button id="sendBtn" class="send" title="إرسال">➤</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
