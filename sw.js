@@ -1,5 +1,6 @@
 // همسة · service worker: opens fast (saved copy of the app) and shows notifications when the app is closed.
-const CACHE = 'hamsa-v6';
+importScripts('config.js');   // self.HAMSA: the server address, to say "delivered"
+const CACHE = 'hamsa-v7';
 const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
@@ -21,6 +22,8 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
   e.waitUntil((async () => {
+    // tell the server this phone received it: the sender's trail lights its second dot, even with the app closed
+    if (d.ack && self.HAMSA) fetch(self.HAMSA.url + '/functions/v1/push', { method: 'POST', headers: { apikey: self.HAMSA.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ ack: d.ack }) }).catch(() => {});
     await self.registration.showNotification(d.title || 'همسة', { body: d.body || 'رسالة جديدة', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: 'rtl', lang: 'ar', data: { conv: d.conv } });
   })());
 });

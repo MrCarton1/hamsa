@@ -5,7 +5,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const COLORS = ['#00a884', '#53bdeb', '#e26a6a', '#f2a541', '#a77bf3', '#e66aa8', '#3fb6a8', '#7f9cf5'];
 const colorOf = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 const avatar = (el, name, id) => { el.textContent = (name || '؟').trim().charAt(0); el.style.background = colorOf(id || name); };
-const toast = t => { const e = $('#toast'); e.textContent = t; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => e.hidden = true, 3200); };
+const toast = t => { const e = $('#toast'); e.textContent = t; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => e.hidden = true, Math.max(3200, t.length * 60)); };
 const fmtTime = d => new Date(d).toLocaleTimeString('ar', { hour: 'numeric', minute: '2-digit' });
 const fmtDay = d => { const x = new Date(d), t = new Date(); const y = new Date(t); y.setDate(t.getDate() - 1);
   return x.toDateString() === t.toDateString() ? 'اليوم' : x.toDateString() === y.toDateString() ? 'أمس' : x.toLocaleDateString('ar', { day: 'numeric', month: 'long', year: 'numeric' }); };
@@ -98,8 +98,8 @@ function renderChats() {
   const shown = convs.filter(c => !q || convTitle(c).toLowerCase().includes(q));
   list.innerHTML = shown.map(c => { const t = convTitle(c), other = c.is_group ? c.id : ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id;
     const mineLast = c.last && c.last.sender_id === me.id && !c.last.deleted, who = c.is_group && c.last && !c.last.deleted && !mineLast ? nameOf(c.last.sender_id) + ': ' : '';
-    return `<li data-c="${c.id}" class="${current && current.id === c.id ? 'on' : ''}"><span class="av" style="background:${colorOf(other)}">${c.is_group ? '👥' : esc(t.charAt(0))}</span>
-<div class="mid"><b>${esc(t)}</b><small>${esc(who + preview(c.last))}</small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<br><span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
+    return `<li data-c="${c.id}" class="${current && current.id === c.id ? 'on' : ''}${c.unread ? ' unread' : ''}"><span class="av" style="background:${colorOf(other)}">${c.is_group ? '👥' : esc(t.charAt(0))}</span>
+<div class="mid"><b>${esc(t)}</b><small>${mineLast ? trail(c.last, c.id) : ''}<span class="pv">${esc(who + preview(c.last))}</span></small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
     || `<p class="hint" style="padding:18px">${q ? 'ما فيه نتائج' : 'ما عندك محادثات للحين. روح «الأصدقاء» وأضف صديق.'}</p>`;
   const u = convs.reduce((a, c) => a + c.unread, 0); $('#unreadAll').hidden = !u; $('#unreadAll').textContent = u;
 }
@@ -176,7 +176,7 @@ async function openChat(id) {
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return;
   if (error) { $('#msgs').innerHTML = ''; return toast(errText(error)); }   // no more stuck "loading" text
-  $('#msgs').innerHTML = ''; (data || []).reverse().forEach(m => addMsg(m)); scrollDown(); markRead(); viewing(true);
+  $('#msgs').innerHTML = ''; addMsg.bulk = true; (data || []).reverse().forEach(m => addMsg(m)); addMsg.bulk = false; note(); scrollDown(); markRead(); viewing(true);
   if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
 function closeChat() { stopTyping(); leaveTyping(); viewing(false); current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
@@ -192,7 +192,7 @@ function msgHtml(m) {
   if (!m.deleted && m.kind === 'voice') body = `<audio controls preload="none" data-media="${esc(m.media_path)}"></audio>`;
   return `${current.is_group && !mine ? `<div class="who" style="color:${colorOf(m.sender_id)}">${esc(nameOf(m.sender_id))}</div>` : ''}
 ${q ? `<div class="q" data-jump="${q.id}"><b>${esc(q.sender_id === me.id ? 'أنت' : nameOf(q.sender_id))}</b>: ${esc(q.deleted ? 'رسالة محذوفة' : preview(q))}</div>` : ''}
-<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? 'معدّلة · ' : ''}${fmtTime(m.created_at)}</div>
+<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? '<span>معدّلة</span>' : ''}<span>${fmtTime(m.created_at)}</span>${mine && !m.deleted ? trail(m, current.id) : ''}</div>
 ${m.deleted ? '' : `<div class="tools"><button data-act="reply" title="رد">↩</button>${mine && m.kind === 'text' ? '<button data-act="edit" title="تعديل">✏️</button>' : ''}${mine ? '<button data-act="del" title="حذف">🗑</button>' : ''}${m.kind === 'text' ? '<button data-act="copy" title="نسخ">📋</button>' : ''}</div>`}`;
 }
 let lastDay = '';
@@ -200,7 +200,7 @@ function addMsg(m) {
   const box = $('#msgs'), day = fmtDay(m.created_at);
   if (!box.lastElementChild || box.dataset.lastDay !== day) { box.insertAdjacentHTML('beforeend', `<div class="day">${day}</div>`); box.dataset.lastDay = day; }
   msgsById.set(m.id, m); const el = document.createElement('div'); el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : ''); el.dataset.id = m.id; el.innerHTML = msgHtml(m);
-  box.appendChild(el); loadMedia(el);
+  box.appendChild(el); loadMedia(el); if (!addMsg.bulk) note();
 }
 function updateMsg(m) { msgsById.set(m.id, m); const el = document.querySelector(`.m[data-id="${m.id}"]`); if (!el) return; el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : ''); el.innerHTML = msgHtml(m); loadMedia(el); }
 async function signed(path) { if (urlCache.has(path)) return urlCache.get(path); const { data } = await sb.storage.from('media').createSignedUrl(path, 3600); const u = data && data.signedUrl; if (u) urlCache.set(path, u); return u; }
@@ -287,6 +287,9 @@ async function live() {
       if (eventType === 'UPDATE' && f.status === 'accepted' && f.requester === me.id) toast(`✅ ${nameOf(f.addressee)} قبل طلب صداقتك`);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'members', filter: `user_id=eq.${me.id}` }, () => loadChats())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, ({ new: r }) => {   // someone received / read: light the trail
+      const list = members.get(r.conversation_id); const x = list && list.find(m => m.user_id === r.user_id); if (!x || r.user_id === me.id) return;
+      Object.assign(x, { delivered_at: r.delivered_at, seen_at: r.seen_at, last_read: r.last_read }); refreshTrail(r.conversation_id); })
     .subscribe();
 }
 
@@ -372,16 +375,17 @@ $('#settingsBtn').onclick = () => {
 <label class="chk"><input type="checkbox" id="sNotif" ${notif ? 'checked' : ''}> إشعارات الرسائل على جوالي</label>
 <div class="sec">الخصوصية</div>
 <label class="chk"><input type="checkbox" id="sVis" ${myPres.visible ? 'checked' : ''}> أصدقائي يشوفون إني متصل أو داخل المحادثة</label>
-<p class="muted">إذا قفلته، أنت بعد ما تشوف حالة أصدقائك.</p>
+<label class="chk"><input type="checkbox" id="sRec" ${myPres.receipts ? 'checked' : ''}> أصدقائي يعرفون إني قريت رسايلهم</label>
+<p class="muted">إذا قفلت وحدة منهم، أنت بعد ما تشوفها عند أصدقائك.</p>
 <div class="sec">المظهر</div>
 <label class="chk"><input type="radio" name="sTheme" value="dark" ${dark ? 'checked' : ''}> داكن</label><label class="chk"><input type="radio" name="sTheme" value="light" ${dark ? '' : 'checked'}> فاتح</label>
 <div class="sec">كلمة السر</div>
 <input id="sPass" type="password" dir="ltr" minlength="6" placeholder="كلمة سر جديدة (اتركها فاضية إذا ما تبي تغيرها)" autocomplete="new-password">
 </div><div class="row"><button value="logout" class="btn danger">تسجيل الخروج</button><button value="x" class="btn">إلغاء</button><button value="ok" class="btn primary">حفظ</button></div>`, async () => {
-    const name = $('#sName').value.trim(), vis = $('#sVis').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
+    const name = $('#sName').value.trim(), vis = $('#sVis').checked, rec = $('#sRec').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
     setTheme(theme);
     if (name && name !== me.display_name) { const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id); if (error) return toast(errText(error)); me.display_name = name; profiles.set(me.id, me); $('#meName').textContent = name; avatar($('#meAvatar'), name, me.id); }
-    if (vis !== myPres.visible) { myPres = { visible: vis, receipts: myPres.receipts }; await presence({ visible: vis, receipts: myPres.receipts }); if (current) updateStatus(); }
+    if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTrail(current.id); } }
     if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
     if (wantNotif && !notif) await enablePush();
     if (!wantNotif && notif) await turnOff();
@@ -510,3 +514,45 @@ function showTyping() {
   el.textContent = current.is_group ? [...typers.keys()].map(nameOf).join('، ') + ' يكتب…' : 'يكتب…'; el.className = 'live';
 }
 setInterval(() => { if (typers.size) showTyping(); }, 1000);
+// ---------- the whisper's trail (instead of ✓✓) ----------
+// 1 dot: it left your phone · 2: it reached their phone (app open, or the notification arrived) · 3: they read it
+function stateOf(m, convId) {
+  const others = (members.get(convId) || []).filter(x => x.user_id !== me.id), t = new Date(m.created_at).getTime(), at = v => v && new Date(v).getTime() >= t;
+  const seen = others.filter(x => at(x.seen_at)), got = others.filter(x => at(x.delivered_at) || at(x.seen_at));
+  const s = !others.length ? 1 : myPres.receipts && seen.length === others.length ? 3 : got.length === others.length ? 2 : 1;
+  return { s, others, seen, got };
+}
+const stateWords = ['', 'انرسلت', 'وصلت لجواله', 'قراها'];
+function trail(m, convId) { const { s } = stateOf(m, convId); return `<span class="trail s${s}" data-trail="${m.id}" title="${stateWords[s]}"><i></i><i></i><i></i></span>`; }
+function refreshTrail(convId) {
+  if (current && current.id === convId) document.querySelectorAll('.m.mine').forEach(el => {
+    const m = msgsById.get(+el.dataset.id), old = el.querySelector('.trail'); if (!m || !old) return;
+    const before = old.className; old.outerHTML = trail(m, convId); const now = el.querySelector('.trail');
+    if (now.className !== before) now.classList.add('lit');
+  });
+  note(); renderChats();
+}
+// one plain sentence under your last message, so you never have to decode dots
+function note() {
+  const box = $('#msgs'); if (!box || !current) return; box.querySelector('.dnote')?.remove();
+  const last = [...msgsById.values()].filter(m => !m.deleted).pop(); if (!last || last.sender_id !== me.id) return;
+  const { s, others, seen, got } = stateOf(last, current.id), age = (srvNow() - new Date(last.created_at)) / 1000;
+  const lastSeen = seen.map(x => x.seen_at).sort().pop();
+  let text = '', cls = '';
+  if (s === 3) { text = current.is_group ? 'قراها الكل' : 'قراها ' + fmtTime(lastSeen); cls = 'seen'; }
+  else if (current.is_group && myPres.receipts && seen.length) text = `قراها ${seen.length} من ${others.length}`;
+  else if (s === 2) text = current.is_group ? 'وصلت للكل' : 'وصلت لجواله';
+  else if (age > 25) { text = current.is_group ? `وصلت لـ ${got.length} من ${others.length}، الباقين جوالاتهم مقفلة أو بدون نت` : 'ما وصلت لجواله للحين، يمكن جواله مقفل أو بدون نت'; cls = 'wait'; }
+  else text = 'انرسلت';
+  box.insertAdjacentHTML('beforeend', `<div class="dnote ${cls}">${esc(text)}</div>`);
+}
+setInterval(() => { if (current && !document.hidden) note(); }, 10000);
+// tap the dots: the full story of that message
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-trail]'); if (!t || !current) return; e.stopPropagation();
+  const m = msgsById.get(+t.dataset.trail); if (!m) return; const { others } = stateOf(m, current.id), tm = new Date(m.created_at).getTime(), at = v => v && new Date(v).getTime() >= tm;
+  const lines = ['انرسلت ' + fmtTime(m.created_at)];
+  for (const x of others) { const who = current.is_group ? nameOf(x.user_id) + ': ' : '';
+    lines.push(who + (myPres.receipts && at(x.seen_at) ? 'قراها ' + fmtTime(x.seen_at) : at(x.delivered_at) ? 'وصلت ' + fmtTime(x.delivered_at) : 'ما وصلت للحين')); }
+  toast(lines.join('\n'));
+}, true);

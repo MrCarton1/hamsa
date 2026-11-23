@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0b141a">
+<meta name="theme-color" content="#1A1D42">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>همسة</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -20,7 +22,7 @@
   <div class="auth-card">
     <img src="icon.svg" alt="" class="logo">
     <h1>همسة</h1>
-    <p class="muted">تواصل مع أهلك وأصحابك</p>
+    <p class="muted">كلام قريب، بينك وبين ناسك</p>
     <div class="tabs"><button class="on" data-mode="in">تسجيل الدخول</button><button data-mode="up">حساب جديد</button></div>
     <form id="authForm" autocomplete="on">
       <label class="up">اسمك (يظهر للناس)<input id="fName" maxlength="40" autocomplete="name"></label>
@@ -36,8 +38,8 @@
 <main id="app" class="app" hidden>
   <aside id="side" class="side">
     <header class="bar">
-      <div class="me"><span id="meAvatar" class="av"></span><div><b id="meName"></b><small id="meUser" dir="ltr"></small></div></div>
-      <div class="icons"><button id="installBtn" title="ثبّت التطبيق" hidden>📲</button><button id="bellBtn" title="الإشعارات">🔕</button><button id="newGroupBtn" title="قروب جديد">👥</button><button id="settingsBtn" title="الإعدادات">⚙️</button></div>
+      <h1 class="wordmark">همسة</h1>
+      <div class="icons"><button id="installBtn" title="ثبّت التطبيق" hidden>📲</button><button id="bellBtn" title="الإشعارات">🔕</button><button id="newGroupBtn" title="قروب جديد">👥</button><button id="settingsBtn" class="me" title="الإعدادات وحسابي"><span id="meAvatar" class="av"></span><span class="me-text"><b id="meName"></b><small id="meUser" dir="ltr"></small></span></button></div>
     </header>
     <div id="pushBar" class="pushbar" hidden><span>🔔 فعّل الإشعارات عشان توصلك الرسائل حتى والتطبيق مقفل</span><button id="pushYes" class="btn small primary">تفعيل</button><button id="pushNo" class="btn small">لاحقاً</button></div>
     <nav class="seg"><button class="on" data-view="chats">المحادثات <span id="unreadAll" class="pill" hidden></span></button><button data-view="friends">الأصدقاء <span id="reqCount" class="pill" hidden></span></button></nav>
