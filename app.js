@@ -41,11 +41,12 @@ $('#authForm').onsubmit = async e => {
     } else { const { error } = await sb.auth.signInWithPassword({ email, password: p }); if (error) throw error; }
   } catch (x) { msg.textContent = errText(x); } finally { btn.disabled = false; }
 };
-async function logout() { if (!confirm('تبي تسجل خروج؟')) return; await sb.rpc('touch_presence', { c: null });
+async function logout() { if (!confirm('تبي تسجل خروج؟')) return; await sb.rpc('touch_presence', { c: null, on_line: false });
   try { const reg = await navigator.serviceWorker?.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
   await sb.auth.signOut(); }
 
-sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => session ? start(session.user) : stop(), 0); });
+let accessToken = null;
+sb.auth.onAuthStateChange((ev, session) => { accessToken = session ? session.access_token : null; setTimeout(() => session ? start(session.user) : stop(), 0); });
 
 // start() can be called twice at once (INITIAL_SESSION + SIGNED_IN). The guard stops two sets of channels and double unread counts.
 let busyUid = null;
@@ -170,7 +171,7 @@ async function openChat(id) {
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
   const t = convTitle(c); $('#roomName').textContent = t; $('#roomAv').textContent = c.is_group ? '👥' : t.charAt(0);
   $('#roomAv').style.background = colorOf(c.is_group ? c.id : ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id);
-  $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
+  typers.clear(); joinTyping(c.id); $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
   renderChats(); $('#msgs').innerHTML = '<div class="day">جاري التحميل…</div>';
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return;
@@ -178,7 +179,7 @@ async function openChat(id) {
   $('#msgs').innerHTML = ''; (data || []).reverse().forEach(m => addMsg(m)); scrollDown(); markRead(); viewing(true);
   if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
-function closeChat() { viewing(false); current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
+function closeChat() { stopTyping(); leaveTyping(); viewing(false); current = null; $('#app').classList.remove('open'); $('#room').hidden = true; $('#empty').hidden = false; renderChats(); }
 $('#backBtn').onclick = closeChat;
 const scrollDown = () => { const b = $('#msgs'); b.scrollTop = b.scrollHeight; };
 async function markRead() { if (!current) return; const now = new Date().toISOString(); current.last_read = now;
@@ -222,7 +223,7 @@ $('#replyX').onclick = () => { replyTo = null; $('#replyBox').hidden = true; };
 
 // ---------- sending ----------
 const ta = $('#text');
-ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; };
+ta.oninput = e => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; if (e) ta.value.trim() ? typing() : stopTyping(); };
 ta.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !/Mobi/.test(navigator.userAgent)) { e.preventDefault(); $('#composer').requestSubmit(); } };
 async function send(row) {
   if (!current) return; const r = { conversation_id: current.id, reply_to: replyTo ? replyTo.id : null, ...row };
@@ -232,7 +233,7 @@ async function send(row) {
   bumpConv(data);
   sb.functions.invoke('push', { body: { message_id: data.id } }).catch(() => {});   // notify the others' phones
 }
-$('#composer').onsubmit = e => { e.preventDefault(); const t = ta.value.trim(); if (!t) return; ta.value = ''; ta.oninput(); send({ kind: 'text', body: t }); };
+$('#composer').onsubmit = e => { e.preventDefault(); const t = ta.value.trim(); if (!t) return; stopTyping(); ta.value = ''; ta.oninput(); send({ kind: 'text', body: t }); };
 async function upload(blob, ext, type) {
   const path = `${current.id}/${crypto.randomUUID()}.${ext}`;
   const { error } = await sb.storage.from('media').upload(path, blob, { contentType: type }); if (error) throw error; return path;
@@ -272,7 +273,7 @@ function bumpConv(m) { const c = convs.find(x => x.id === m.conversation_id); if
   c.last = m; if (!(current && current.id === c.id) && m.sender_id !== me.id) c.unread++;
   convs.sort((a, b) => new Date((b.last && b.last.created_at) || b.last_at) - new Date((a.last && a.last.created_at) || a.last_at)); renderChats(); }
 async function live() {
-  await sb.removeAllChannels();   // must finish first, or it also removes the new channel
+  for (const ch of sb.getChannels().filter(x => x.topic.endsWith('hamsa-live'))) await sb.removeChannel(ch);   // must finish first
   sb.channel('hamsa-live')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async ({ new: m }) => {
       await needProfiles([m.sender_id]); if (m.sender_id !== me.id) delivered();
@@ -296,7 +297,8 @@ async function live() {
 let lastSync = 0;
 async function resync() {
   if (!me || Date.now() - lastSync < 3000) return; lastSync = Date.now();
-  const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') await live();
+  const ch = liveCh(); if (!ch || ch.state !== 'joined') await live();
+  if (current && (!typingCh || typingCh.state !== 'joined')) joinTyping(current.id);
   await Promise.all([loadChats(), loadFriends()]); delivered();
   if (current) {   // messages that arrived while the connection was asleep
     const lastId = Math.max(0, ...[...msgsById.keys()]);
@@ -310,11 +312,16 @@ async function resync() {
 // the database itself stops your friends from reading it (rule presence_read in setup.sql).
 async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
 // times come from the server's clock: a phone whose clock is a bit wrong would otherwise break ✓✓ and "online"
-const viewing = on => me ? sb.rpc('touch_presence', { c: on && current ? current.id : null }).then(() => {}) : null;
+const viewing = on => me ? sb.rpc('touch_presence', { c: on && current ? current.id : null, on_line: true }).then(() => {}) : null;
+// leaving the app: "offline" at once. keepalive lets the request finish even while the phone closes the app.
+function goOffline() {
+  if (!me || !accessToken) return;
+  try { fetch(HAMSA.url + '/rest/v1/rpc/touch_presence', { method: 'POST', keepalive: true, headers: { apikey: HAMSA.key, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ c: null, on_line: false }) }).catch(() => {}); } catch {}
+}
 let skew = 0;   // server time minus phone time
 async function syncClock() { const t0 = Date.now(), { data } = await sb.rpc('server_now'); if (data) skew = new Date(data).getTime() - (t0 + Date.now()) / 2; }
 const srvNow = () => Date.now() + skew;
-setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 12000);
+setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 10000);
 // "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds).
 // If a call comes too soon, it is run again when the 2 seconds are over, so the last message gets its ✓✓ too.
 let delT = 0, delPend = null;
@@ -340,13 +347,13 @@ function refreshTicks(convId) {
 
 // the line under the name: inside the chat now / online / last seen
 function subtitle(c) { return c.is_group ? (members.get(c.id) || []).map(m => m.user_id === me.id ? 'أنت' : nameOf(m.user_id)).join('، ') : '@' + ((profiles.get(((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id) || {}).username || ''); }
-const ago = d => { const s = (srvNow() - new Date(d)) / 1000; if (s < 3600) return `قبل ${Math.max(1, Math.round(s / 60))} دقيقة`; if (new Date(d).toDateString() === new Date().toDateString()) return 'اليوم ' + fmtTime(d); return fmtDay(d) + ' ' + fmtTime(d); };
+const ago = d => { const s = (srvNow() - new Date(d)) / 1000; if (s < 60) return 'قبل لحظات'; if (s < 3600) { const m = Math.round(s / 60); return m === 1 ? 'قبل دقيقة' : m === 2 ? 'قبل دقيقتين' : m <= 10 ? `قبل ${m} دقائق` : `قبل ${m} دقيقة`; } if (new Date(d).toDateString() === new Date().toDateString()) return 'اليوم ' + fmtTime(d); return fmtDay(d) + ' ' + fmtTime(d); };
 async function updateStatus() {
-  const c = current; if (!c || !me) return; const el = $('#roomSub');
+  const c = current; if (!c || !me) return; const el = $('#roomSub'); if (typers.size) return showTyping();
   if (!myPres.visible) { el.textContent = subtitle(c); el.className = ''; return; }   // you hide yours, so you don't see others'
   const ids = (members.get(c.id) || []).map(m => m.user_id).filter(id => id !== me.id);
-  const { data } = await sb.from('presence').select('user_id,last_seen,viewing_conv,viewing_at').in('user_id', ids); if (current !== c) return;
-  const now = srvNow(), inChat = (data || []).filter(p => p.viewing_conv === c.id && p.viewing_at && now - new Date(p.viewing_at) < 30000), online = (data || []).filter(p => p.last_seen && now - new Date(p.last_seen) < 35000);
+  const { data } = await sb.from('presence').select('user_id,last_seen,viewing_conv,viewing_at,online').in('user_id', ids); if (current !== c) return;
+  const now = srvNow(), on = p => p.online && p.last_seen && now - new Date(p.last_seen) < 25000, inChat = (data || []).filter(p => on(p) && p.viewing_conv === c.id && p.viewing_at), online = (data || []).filter(on);
   if (!c.is_group) {
     const p = (data || [])[0];
     el.textContent = inChat.length ? '● داخل المحادثة الحين' : online.length ? '● متصل' : p && p.last_seen ? 'آخر ظهور ' + ago(p.last_seen) : subtitle(c);
@@ -398,10 +405,12 @@ $('#settingsBtn').onclick = () => {
     toast('تم حفظ الإعدادات ✅'); });
   const d = $('#dlg'), prev = d.onclose; d.onclose = () => d.returnValue === 'logout' ? logout() : prev();
 };
-setInterval(() => { if (me && !document.hidden) { const ch = sb.getChannels()[0]; if (!ch || ch.state !== 'joined') resync(); } }, 8000);
+const liveCh = () => sb.getChannels().find(x => x.topic.endsWith('hamsa-live'));
+setInterval(() => { if (me && !document.hidden) { const ch = liveCh(); if (!ch || ch.state !== 'joined') resync(); } }, 8000);
 setInterval(() => { if (me && !document.hidden) resync(); }, 45000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) viewing(false); else { if (current) { markRead(); updateStatus(); } viewing(!!current); delivered(); resync(); } });
-addEventListener('pagehide', () => viewing(false));
+document.addEventListener('visibilitychange', () => { if (document.hidden) { goOffline(); stopTyping(); } else { if (current) { markRead(); updateStatus(); } viewing(!!current); delivered(); resync(); } });
+addEventListener('pagehide', goOffline);
+addEventListener('blur', () => { if (document.hidden) goOffline(); });
 addEventListener('online', () => resync());
 addEventListener('focus', () => resync());
 
@@ -498,3 +507,23 @@ function pushStart() {
   let later = 0; try { later = +localStorage.getItem('hamsa-push-later') || 0; } catch {}
   $('#pushBar').hidden = Notification.permission !== 'default' || Date.now() - later < 3 * 864e5;
 }
+// ---------- "typing…": short live signals inside the chat (nothing is saved) ----------
+let typingCh = null, typingConv = null, lastTyping = 0;
+const typers = new Map();   // user id → time the signal expires
+function joinTyping(convId) {
+  leaveTyping(); typingConv = convId;
+  typingCh = sb.channel('typing-' + convId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => { if (!payload || payload.u === me.id || typingConv !== convId) return;
+      if (payload.stop) typers.delete(payload.u); else typers.set(payload.u, Date.now() + 4500); showTyping(); })
+    .subscribe();
+}
+function leaveTyping() { if (typingCh) { sb.removeChannel(typingCh); typingCh = null; } typingConv = null; typers.clear(); }
+function typing() { if (!typingCh || Date.now() - lastTyping < 2500) return; lastTyping = Date.now(); typingCh.send({ type: 'broadcast', event: 'typing', payload: { u: me.id } }); }
+function stopTyping() { if (!typingCh || !lastTyping) return; lastTyping = 0; typingCh.send({ type: 'broadcast', event: 'typing', payload: { u: me.id, stop: true } }); }
+function showTyping() {
+  const now = Date.now(); for (const [u, t] of typers) if (t < now) typers.delete(u);
+  const el = $('#roomSub'); if (!current) return;
+  if (!typers.size) return updateStatus();
+  el.textContent = current.is_group ? [...typers.keys()].map(nameOf).join('، ') + ' يكتب…' : 'يكتب…'; el.className = 'live';
+}
+setInterval(() => { if (typers.size) showTyping(); }, 1000);
