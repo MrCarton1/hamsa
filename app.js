@@ -1,8 +1,8 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.1.1';
+const VERSION = '3.2';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
-if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel')) {
+if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
     if (self.caches) for (const k of await caches.keys()) await caches.delete(k);
     await Promise.all(['./', './index.html', './style.css', './app.js', './i18n.js', './crypto.js', './config.js', './sw.js'].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
@@ -32,7 +32,13 @@ const P = {
   userPlus: 'M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c.7-4 3.6-6.5 7-6.5 1.4 0 2.7.4 3.8 1.1M19 14v6M16 17h6',
   smile: 'M14 21H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5v6zM14 21v-2.5a4.5 4.5 0 0 1 4.5-4.5H21M8.5 13.5c.9 1 2 1.5 3.5 1.5M9 9v.5M15 9v.5',
   play: 'M8 5.5v13l11-6.5z', pause: 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z', plus: 'M12 5v14M5 12h14', x: 'M6 6l12 12M18 6L6 18',
-  save: 'M6 3h12v18l-6-4-6 4zM12 7v6M9 10h6',
+  save: 'M6 3h12v18l-6-4-6 4zM12 7v6M9 10h6', kept: 'M6 3h12v18l-6-4-6 4z',
+  phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z', video: 'M3 7h12v10H3zM15 10.5l6-3.5v10l-6-3.5',
+  micOff: 'M9 9v2.5a3 3 0 0 0 5 2.2M15 10V6.5a3 3 0 0 0-5.7-1.3M5.5 11a6.5 6.5 0 0 0 10.6 5M18.5 11c0 .8-.1 1.5-.4 2.2M12 17.5V21M3 3l18 18',
+  camOff: 'M3 7h12v10H3zM15 10.5l6-3.5v10l-6-3.5M3 3l18 18', flip: 'M4 9h12l-3-3M20 15H8l3 3', timer: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
+  chat: 'M4 5h16v11H9l-5 4z', eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  status: 'M12 3a9 9 0 0 1 0 18M12 21a9 9 0 0 1-6.4-2.6M3.6 15.5A9 9 0 0 1 3 12M3.6 8.5A9 9 0 0 1 5.6 5.6M8.5 3.6A9 9 0 0 1 12 3M12 8v8M8 12h8',
+  photo: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5v.01', text: 'M5 6h14M12 6v13',
   reply: 'M10 7L4 12l6 5M4 12h10a6 6 0 0 1 6 6', edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4', trash: 'M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13', copy: 'M8 8h11v12H8zM5 16V4h11'
 };
 // arrows point the other way in Arabic (mirrored inside the drawing, so it works everywhere)
@@ -77,7 +83,10 @@ applyTheme();
 // ---------- state ----------
 let me = null, myDev = null, accessToken = null, nicks = new Map(), myPres = { visible: true, receipts: true };
 const blobCache = new Map(), profiles = new Map(), members = new Map(), msgsById = new Map(), plain = new Map(), urlCache = new Map(), devPub = new Map(), devsByConv = new Map();
-let convs = [], current = null, replyTo = null, friends = [];
+let convs = [], current = null, replyTo = null, friends = [], prefs = { msg_timer: 0, status_hours: 24 };
+async function loadPrefs() { const { data } = await sb.from('user_prefs').select('msg_timer,status_hours').maybeSingle(); if (data) prefs = data; }
+async function savePrefs(ch) { Object.assign(prefs, ch); const { data } = await sb.from('user_prefs').update(ch).eq('user_id', me.id).select('user_id');
+  if (!data || !data.length) { const { error } = await sb.from('user_prefs').insert({ msg_timer: prefs.msg_timer, status_hours: prefs.status_hours }); if (error) toast(errText(error)); } }
 
 // ---------- first screens: language → sign in ----------
 let mode = null;
@@ -111,12 +120,14 @@ async function start(user) {
     await initDevice();
     const [{ data: nk }, { data: pr }] = await Promise.all([sb.from('contact_names').select('target,name'), sb.from('presence').select('*').eq('user_id', p.id).maybeSingle()]);
     nicks = new Map((nk || []).map(x => [x.target, x.name])); if (pr) myPres = { visible: pr.visible, receipts: pr.receipts };
-    await Promise.all([loadChats(), loadFriends()]); await live(); syncClock(); viewing(false); delivered();
-    const want = new URLSearchParams(location.search).get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
+    await Promise.all([loadChats(), loadFriends(), loadPrefs()]); await live(); syncClock(); viewing(false); delivered(); loadStatuses(); checkRinging();
+    const qs = new URLSearchParams(location.search), want = qs.get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
+    if (qs.get('people')) openSettings('people');
     pushStart();
   } finally { starting = false; const n = start.next; start.next = null; if (n && (!me || me.id !== n.id)) start(n); }
 }
 function stop() {
+  if (call) endCall('ended'); closeStory(true); stories.clear();
   me = null; myDev = null; myStk = null; nicks = new Map(); current = null; convs = []; friends = []; profiles.clear(); members.clear(); msgsById.clear(); plain.clear(); devsByConv.clear();
   sb.removeAllChannels(); $('#app').hidden = true; closeSettings(true); $('#room').hidden = true; $('#empty').hidden = false; $('#app').classList.remove('open');
   if (lang) $('#auth').hidden = false; else $('#lang').hidden = false;
@@ -185,8 +196,8 @@ const sortConvs = () => convs.sort((a, b) => new Date((b.last && b.last.created_
 const otherOf = c => ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id;
 const convTitle = c => c.is_group ? c.name : nameOf(otherOf(c));
 function preview(m, r) {
-  if (!m) return t('startChat'); if (m.deleted) return t('deletedShort');
-  if (m.kind === 'image') return t('photo'); if (m.kind === 'voice') return t('voice'); if (m.kind === 'sticker') return t('sticker');
+  if (!m) return t('startChat'); if (m.deleted) return t('deletedShort'); if (gone(m)) return '⏳';
+  if (m.kind === 'image') return t('photo'); if (m.kind === 'voice') return t('voice'); if (m.kind === 'sticker') return t('sticker'); if (m.kind === 'call') return t('callPrev');
   if (r && r.fail) return t('cantOpen'); return (r && r.text) || '';
 }
 function renderChats() {
@@ -207,7 +218,7 @@ async function loadFriends() {
   if (!me) return; const { data } = await sb.from('friendships').select('*').order('created_at', { ascending: false }); friends = data || [];
   await needProfiles(friends.flatMap(f => [f.requester, f.addressee]));
   const other = f => f.requester === me.id ? f.addressee : f.requester, row = (id, extra) => { const p = profiles.get(id) || {};
-    return `<div class="frow">${avatarHtml(id)}<div class="mid"><b>${esc(nameOf(id))}</b><small><span dir="ltr">@${esc(p.username)}</span>${nicks.has(id) ? ' · ' + esc(p.display_name) : ''}</small></div>${extra}</div>`; };
+    return `<div class="frow"><button class="pf-link" data-user="${id}">${avatarHtml(id)}</button><div class="mid pf-link" data-user="${id}"><b>${esc(nameOf(id))}</b><small><span dir="ltr">@${esc(p.username)}</span>${nicks.has(id) ? ' · ' + esc(p.display_name) : ''}</small></div>${extra}</div>`; };
   const inc = friends.filter(f => f.status === 'pending' && f.addressee === me.id), out = friends.filter(f => f.status === 'pending' && f.requester === me.id), acc = friends.filter(f => f.status === 'accepted');
   $('#reqCount').hidden = !inc.length; $('#reqCount').textContent = inc.length;
   const box = $('#peopleLists'); if (!box) return;
@@ -227,13 +238,14 @@ async function addFriend() {
   profiles.set(p.id, p);
   const ex = friends.find(f => (f.requester === p.id && f.addressee === me.id) || (f.requester === me.id && f.addressee === p.id));
   if (ex && ex.status === 'accepted') return msg.textContent = t('alreadyFriend');
-  if (ex && ex.requester === p.id) { await sb.rpc('respond_friend', { fid: ex.id, accept: true }); msg.textContent = t('theyAsked'); }
+  if (ex && ex.requester === p.id) { await sb.rpc('respond_friend', { fid: ex.id, accept: true }); msg.textContent = t('theyAsked'); sb.functions.invoke('push', { body: { friend: ex.id } }).catch(() => {}); }
   else if (ex) return msg.textContent = t('alreadyAsked');
-  else { const { error } = await sb.from('friendships').insert({ addressee: p.id }); if (error) return msg.textContent = errText(error); msg.textContent = t('sentReq', { n: p.display_name }); }
+  else { const { data: fr, error } = await sb.from('friendships').insert({ addressee: p.id }).select('id').single(); if (error) return msg.textContent = errText(error); msg.textContent = t('sentReq', { n: p.display_name });
+    sb.functions.invoke('push', { body: { friend: fr.id } }).catch(() => {}); }
   $('#pfUser').value = ''; loadFriends();
 }
 async function friendAction(b) {
-  if (b.dataset.acc) await sb.rpc('respond_friend', { fid: +b.dataset.acc, accept: true });
+  if (b.dataset.acc) { await sb.rpc('respond_friend', { fid: +b.dataset.acc, accept: true }); sb.functions.invoke('push', { body: { friend: +b.dataset.acc } }).catch(() => {}); }
   if (b.dataset.dec) await sb.rpc('respond_friend', { fid: +b.dataset.dec, accept: false });
   if (b.dataset.nick) return rename(b.dataset.nick);
   if (b.dataset.rm) { if (!confirm(t('sure'))) return; await sb.from('friendships').delete().eq('id', +b.dataset.rm); }
@@ -258,7 +270,7 @@ $('#infoBtn').onclick = async () => {
   if (!c.is_group) { const other = otherOf(c), devs = (await devicesFor(c.id, true)); const mine = devs.filter(d => d.user_id === me.id).map(d => d.pub), theirs = devs.filter(d => d.user_id === other).map(d => d.pub);
     if (mine.length && theirs.length) safety = `<div class="safety"><div class="sec flush">${ic('shield')} ${t('safety')}</div><div class="code" dir="ltr">${await HC.safety([...mine, ...theirs])}</div><p class="muted small">${t('safetyNote')}</p></div>`; }
   dialog(`<div class="info-head">${avatarHtml(c.is_group ? c.id : otherOf(c), { group: c.is_group, cls: 'xl' })}<h3>${esc(convTitle(c))}</h3></div>
-<div class="sec flush">${t('members')}</div><div class="scroll">${ms.map(m => `<div class="frow flush">${avatarHtml(m.user_id, { cls: 'sm' })}<div class="mid"><b>${esc(nameOf(m.user_id))}${m.user_id === me.id ? ' · ' + t('you') : ''}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username)}${m.role === 'admin' ? ' · ' + t('admin') : ''}</small></div></div>`).join('')}</div>
+<div class="sec flush">${t('members')}</div><div class="scroll">${ms.map(m => `<div class="frow flush${m.user_id !== me.id ? ' pf-open' : ''}" data-uopen="${m.user_id}">${avatarHtml(m.user_id, { cls: 'sm' })}<div class="mid"><b>${esc(nameOf(m.user_id))}${m.user_id === me.id ? ' · ' + t('you') : ''}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username)}${m.role === 'admin' ? ' · ' + t('admin') : ''}</small></div></div>`).join('')}</div>
 ${c.is_group && admin && addable.length ? `<div class="sec flush">${t('addMembers')}</div>${addable.map(id => `<label class="chk">${avatarHtml(id, { cls: 'sm' })}<span>${esc(nameOf(id))}</span><input type="checkbox" value="${id}"></label>`).join('')}` : ''}
 ${safety}
 <div class="row">${c.is_group ? `<button value="leave" class="btn ghost danger">${t('leaveGroup')}</button>` : `<button value="nick" class="btn ghost">${t('renameHere')}</button>`}<button value="x" class="btn ghost">${t('close')}</button>${c.is_group && admin && addable.length ? `<button value="ok" class="btn primary">${t('add')}</button>` : ''}</div>`, async v => {
@@ -284,6 +296,7 @@ async function openChat(id, quiet) {
   if (!quiet && (!current || current.id !== id)) { if (history.state && history.state.v === 'chat') history.replaceState({ v: 'chat' }, ''); else history.pushState({ v: 'chat' }, ''); }
   current = c; c.unread = 0; replyTo = null; $('#stkPanel').hidden = true; $('#stkBtn').classList.remove('on'); $('#replyBox').hidden = true; msgsById.clear(); typers.clear(); joinTyping(c.id);
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
+  $('#voiceBtn').hidden = $('#videoBtn').hidden = !!c.is_group;
   $('#roomName').textContent = convTitle(c); avatarInto($('#roomAv'), c.is_group ? c.id : otherOf(c), c.is_group); $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
   renderChats(); $('#msgs').innerHTML = `<div class="day">${t('loading')}</div>`; devicesFor(c.id);
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
@@ -298,6 +311,9 @@ function closeChat(fromHistory) {
   if (!fromHistory && history.state && history.state.v === 'chat') history.back();
 }
 $('#backBtn').onclick = () => closeChat();
+$('#roomTitle').onclick = $('#roomAv').onclick = () => { if (!current) return; if (current.is_group) return $('#infoBtn').click(); openSettings('user:' + otherOf(current)); };
+$('#voiceBtn').onclick = () => current && startCall(current.id, false);
+$('#videoBtn').onclick = () => current && startCall(current.id, true);
 const scrollDown = () => { const b = $('#msgs'); b.scrollTop = b.scrollHeight; };
 async function markRead() { if (!current) return; current.last_read = new Date().toISOString(); await sb.rpc('mark_read', { c: current.id, receipts: myPres.receipts }); }
 
@@ -309,21 +325,26 @@ function msgHtml(m) {
   else if (m.kind === 'image') body = `<img data-media="${esc(m.media_path)}" data-mid="${m.id}" alt="">` + (r.text ? `<div>${esc(r.text)}</div>` : '');
   else if (m.kind === 'sticker') body = `<img class="stk" data-media="${esc(m.media_path)}" data-mid="${m.id}" alt="">`;
   else if (m.kind === 'voice') body = voiceHtml(m, P);
+  else if (m.kind === 'call') { const lbl = P.r === 'done' ? t(P.v ? 'callVideoDone' : 'callVoiceDone') + ' · ' + fmtDur(P.d) : P.r === 'declined' ? t('callDeclined') : P.r === 'busy' ? t('callBusy') : mine ? t('noAnswer') : t(P.v ? 'missedVideo' : 'missedCall');
+    body = `<button type="button" class="callmsg${P.r === 'done' ? '' : ' miss'}" data-callback="${P.v ? 1 : 0}">${ic(P.v ? 'video' : 'phone')}<span>${esc(lbl)}</span></button>`; }
   else body = esc(r.text);
   const qr = q && (plain.get(q.id + ':' + q.iv) || (q.enc !== 1 ? { text: q.body } : { fail: true }));
   const state = !mine || m.deleted ? '' : m.pending === 1 ? `<span class="trail s0" title="${t('sending')}"><i></i><i></i><i></i></span>` : m.pending === 2 ? `<span class="failed">${t('notSentTap')}</span>` : trail(m, current.id);
   const stkBtn = m.kind === 'sticker' ? `<button data-act="savestk" title="${t('saveSticker')}">${ic('save')}</button>` : m.kind === 'image' && m.enc === 1 ? `<button data-act="mkstk" title="${t('makeSticker')}">${ic('smile')}</button>` : '';
-  const tools = m.deleted || r.fail || m.pending ? '' : `<div class="tools"><button data-act="reply" title="${t('reply')}">${ic('reply')}</button>${mine && m.kind === 'text' ? `<button data-act="edit" title="${t('edit')}">${ic('edit')}</button>` : ''}${stkBtn}${mine ? `<button data-act="del" title="${t('del')}">${ic('trash')}</button>` : ''}${m.kind === 'text' ? `<button data-act="copy" title="${t('copy')}">${ic('copy')}</button>` : ''}</div>`;
+  const tools = m.deleted || r.fail || m.pending ? '' : `<div class="tools"><button data-act="reply" title="${t('reply')}">${ic('reply')}</button>${mine && m.kind === 'text' ? `<button data-act="edit" title="${t('edit')}">${ic('edit')}</button>` : ''}${stkBtn}${m.expires_at && m.id > 0 ? `<button data-act="keep" title="${t(m.kept ? 'unkeep' : 'keep')}">${ic(m.kept ? 'kept' : 'save', m.kept ? 'fill' : '')}</button>` : ''}${mine ? `<button data-act="del" title="${t('del')}">${ic('trash')}</button>` : ''}${m.kind === 'text' ? `<button data-act="copy" title="${t('copy')}">${ic('copy')}</button>` : ''}</div>`;
   return `${current.is_group && !mine ? `<div class="who" style="color:${colorOf(m.sender_id)}">${esc(nameOf(m.sender_id))}</div>` : ''}
 ${q ? `<div class="q" data-jump="${q.id}"><b>${esc(q.sender_id === me.id ? t('you') : nameOf(q.sender_id))}</b> ${esc(q.deleted ? t('deletedMsg') : preview(q, qr))}</div>` : ''}
-<div class="body">${body}</div><div class="meta">${r.old && !m.deleted ? `<span class="old">${t('oldMsg')}</span>` : ''}${m.edited_at && !m.deleted ? `<span>${t('edited')}</span>` : ''}<span>${fmtTime(m.created_at)}</span>${state}</div>
+<div class="body">${body}</div><div class="meta">${r.old && !m.deleted ? `<span class="old">${t('oldMsg')}</span>` : ''}${m.edited_at && !m.deleted ? `<span>${t('edited')}</span>` : ''}${m.expires_at && !m.deleted ? (m.kept ? `<span class="kmark" title="${esc(t('keptBy', { n: m.kept_by === me.id ? t('you') : nameOf(m.kept_by) }))}">${ic('kept', 'tiny fill')}</span>` : `<span class="tmark" title="${t('disappears')}">${ic('timer', 'tiny')}</span>`) : ''}<span>${fmtTime(m.created_at)}</span>${state}</div>
 ${tools}`;
 }
 function paintMsg(el, m) {
   el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : '') + (m.pending ? ' pend' + m.pending : '') + (!m.deleted && m.kind === 'sticker' ? ' stkmsg' : '') + (!m.deleted && m.kind === 'voice' ? ' vmsg' : '');
   el.innerHTML = msgHtml(m); loadMedia(el); if (m.id === playing) paintPlayer();
 }
+const gone = m => m.expires_at && !m.kept && new Date(m.expires_at).getTime() < srvNow();
+setInterval(() => { if (!current) return; for (const m of [...msgsById.values()]) if (gone(m)) { msgsById.delete(m.id); $(`.m[data-id="${m.id}"]`)?.remove(); } }, 15000);
 function addMsg(m) {
+  if (gone(m)) return;
   const box = $('#msgs'), day = fmtDay(m.created_at);
   if (!box.querySelector('.m') || box.dataset.lastDay !== day) { box.insertAdjacentHTML('beforeend', `<div class="day">${day}</div>`); box.dataset.lastDay = day; }
   msgsById.set(m.id, m); const el = document.createElement('div'); el.dataset.id = m.id; paintMsg(el, m); box.appendChild(el); if (!addMsg.bulk) note();
@@ -345,6 +366,7 @@ function loadMedia(el) { el.querySelectorAll('[data-media]').forEach(async x => 
 $('#msgs').onclick = async e => {
   const el = e.target.closest('.m'); if (!el) return; const m = msgsById.get(+el.dataset.id), r = m && plain.get(m.id + ':' + m.iv);
   if (m && m.pending === 2) return m.job && m.job();
+  const cb = e.target.closest('[data-callback]'); if (cb && current) return startCall(current.id, cb.dataset.callback === '1');
   const vp = e.target.closest('[data-vplay]'), vs = e.target.closest('[data-vspeed]'), vw = e.target.closest('[data-wave]');
   if (vp && m) return playVoice(m.id);
   if (vs) { vSpeed = vSpeed === 1 ? 1.5 : vSpeed === 1.5 ? 2 : 1; try { localStorage.setItem('hamsa-vspeed', vSpeed); } catch {} player.playbackRate = vSpeed; $$('[data-vspeed]').forEach(x => x.textContent = vSpeed + '×'); return; }
@@ -357,6 +379,7 @@ $('#msgs').onclick = async e => {
   if (a === 'reply') { replyTo = m; $('#replyText').textContent = (m.sender_id === me.id ? t('you') : nameOf(m.sender_id)) + ': ' + preview(m, r); $('#replyBox').hidden = false; $('#text').focus(); }
   if (a === 'copy') { try { await navigator.clipboard.writeText(text); toast(t('copied')); } catch {} }
   if (a === 'edit') { const n = prompt(t('editTitle'), text); if (n == null || !n.trim() || n === text) return; await editMsg(m, n.trim()); }
+  if (a === 'keep') { el.classList.remove('show'); const { error } = await sb.rpc('keep_message', { mid: m.id, keep: !m.kept }); if (error) return toast(errText(error)); return toast(t(m.kept ? 'unkeptMsg' : 'keptMsg')); }
   if (a === 'savestk' || a === 'mkstk') { const bl = blobCache.get(m.media_path); if (!bl) return toast(t('cantOpen')); el.classList.remove('show');
     return a === 'savestk' ? addSticker(bl, (r && r.payload && r.payload.sh)).catch(x => toast(errText(x))) : stickerMaker(bl); }
   if (a === 'del') { if (!confirm(t('delSure'))) return; const { error } = await sb.from('messages').update({ deleted: true }).eq('id', m.id); if (error) toast(errText(error)); }
@@ -378,14 +401,15 @@ async function recipients(c) {   // every device that must be able to open the m
 // sending: the bubble shows at once, the encryption and upload happen behind it
 let pendSeq = 0; const pendIv = new Set();
 const known = m => msgsById.has(m.id) || pendIv.has(m.iv);
-function send({ kind = 'text', text = '', media = null, extra = null }) {
-  const c = current; if (!c || !myDev) return;
+function send({ kind = 'text', text = '', media = null, extra = null, conv = null }) {
+  const c = conv ? convs.find(x => x.id === conv) : current; if (!c || !myDev) return;
+  const here = current === c;
   const n = ++pendSeq, payload = { t: text, k: kind, ...(extra || {}) };
   const tmp = { id: -n, pending: 1, conversation_id: c.id, sender_id: me.id, kind, reply_to: replyTo ? replyTo.id : null, created_at: new Date(srvNow()).toISOString(), enc: 1, iv: 'p' + n, media_path: media ? 'local:' + n : null };
   if (media) { urlCache.set(tmp.media_path, URL.createObjectURL(media.blob)); blobCache.set(tmp.media_path, media.blob); }
   plain.set(tmp.id + ':' + tmp.iv, { text, payload });
-  replyTo = null; $('#replyBox').hidden = true;
-  addMsg(tmp); scrollDown();
+  if (here) { tmp.reply_to = replyTo ? replyTo.id : null; replyTo = null; $('#replyBox').hidden = true; addMsg(tmp); scrollDown(); } else tmp.reply_to = null;
+  if (prefs.msg_timer) tmp.expires_at = new Date(srvNow() + prefs.msg_timer * 1000).toISOString();
   tmp.job = () => deliver(c, tmp, payload, media);
   return tmp.job();
 }
@@ -401,7 +425,7 @@ async function deliver(c, tmp, payload, media) {
       const { error } = await sb.storage.from('media').upload(path, new Blob([sealed.data], { type: 'application/octet-stream' }), { contentType: 'application/octet-stream' }); if (error) throw error;
       payload.mi = sealed.iv; payload.mt = media.type; }
     const box = await HC.seal(payload, myDev, devs, K); pendIv.add(box.iv);
-    const row = { conversation_id: c.id, kind: tmp.kind, reply_to: tmp.reply_to, media_path: path, enc: 1, ct: box.ct, iv: box.iv, keys: box.keys, sender_device: myDev.id };
+    const row = { conversation_id: c.id, kind: tmp.kind, reply_to: tmp.reply_to, media_path: path, enc: 1, ct: box.ct, iv: box.iv, keys: box.keys, sender_device: myDev.id, expires_at: tmp.expires_at || null };
     const { data, error } = await sb.from('messages').insert(row).select().single(); if (error) { pendIv.delete(box.iv); throw error; }
     plain.set(data.id + ':' + data.iv, { text: payload.t, payload, K });
     if (media) { urlCache.set(path, urlCache.get(tmp.media_path)); blobCache.set(path, media.blob); }
@@ -625,6 +649,8 @@ async function live() {
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, ({ new: r }) => {
       const list = members.get(r.conversation_id); const x = list && list.find(m => m.user_id === r.user_id); if (!x || r.user_id === me.id) return;
       Object.assign(x, { delivered_at: r.delivered_at, seen_at: r.seen_at, last_read: r.last_read }); refreshTrail(r.conversation_id); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, ({ eventType, new: r }) => r && r.id && onCallRow(r, eventType))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'statuses' }, () => loadStatusesSoon())
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, ({ new: p }) => { if (profiles.has(p.id)) { profiles.set(p.id, p); if (p.id === me.id) { me = p; paintMe(); } renderChats(); } })
     .subscribe();
 }
@@ -636,7 +662,7 @@ async function resync() {
   if (!me || Date.now() - lastSync < 3000) return; lastSync = Date.now();
   const ch = liveCh(); if (!ch || ch.state !== 'joined') await live();
   if (current && (!typingCh || typingCh.state !== 'joined')) joinTyping(current.id);
-  await Promise.all([loadChats(), loadFriends()]); delivered();
+  await Promise.all([loadChats(), loadFriends()]); delivered(); loadStatuses(); if (!call) checkRinging();
   if (current) { const lastId = Math.max(0, ...[...msgsById.keys()].filter(k => k > 0));
     const { data } = await sb.from('messages').select('*').eq('conversation_id', current.id).gt('id', lastId).order('id');
     for (const m of data || []) { await reveal(m); if (!known(m)) addMsg(m); } if (data && data.length) { scrollDown(); markRead(); } }
@@ -735,11 +761,12 @@ const row = (page, icon, label, value = '') => `<button class="st-row" data-page
 const toggle = (id, label, note, on) => `<label class="st-toggle"><span><b>${label}</b>${note ? `<small>${note}</small>` : ''}</span><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i class="sw"></i></label>`;
 const radio = (name, value, label, on) => `<label class="st-radio"><span>${label}</span><input type="radio" name="${name}" value="${value}" ${on ? 'checked' : ''}><i>${ic('check')}</i></label>`;
 async function renderSettings(page) {
-  const b = $('#stBody'), title = { main: 'settings', profile: 'profile', account: 'account', privacy: 'privacy', notif: 'notifications', look: 'appearance', lang: 'language', about: 'about', people: 'friendsTitle' }[page];
+  const b = $('#stBody'), title = { main: 'settings', profile: 'profile', account: 'account', privacy: 'privacy', notif: 'notifications', look: 'appearance', lang: 'language', about: 'about', people: 'friendsTitle', timer: 'timerTitle', statusdur: 'statusDur' }[page] || (page.startsWith('user:') ? 'profileTitle' : 'settings');
   $('#stTitle').textContent = t(title); b.className = 'st-body page-in'; void b.offsetWidth; b.classList.add('go');
   const notifOn = pushOK() && Notification.permission === 'granted';
   if (page === 'main') b.innerHTML = `<button class="st-me" data-page="profile">${avatarHtml(me.id, { cls: 'xl' })}<span><b>${esc(me.display_name)}</b><small dir="ltr">@${esc(me.username)}</small></span>${ic('fwd', 'chev')}</button>
 <div class="st-group">${row('account', 'key', t('account'))}${row('privacy', 'lock', t('privacy'))}${row('notif', 'bell', t('notifications'), notifOn ? '✓' : '')}</div>
+<div class="st-group">${row('timer', 'timer', t('timerTitle'), timerLabel(prefs.msg_timer))}${row('statusdur', 'status', t('statusDur'), hoursLabel(prefs.status_hours))}</div>
 <div class="st-group">${row('look', 'palette', t('appearance'), t(theme))}${row('lang', 'globe', t('language'), L().langName)}</div>
 <div class="st-group">${row('about', 'info', t('about'), 'v' + VERSION)}</div>
 <div class="st-group"><button class="st-row danger" id="stLogout"><span class="st-ic">${ic('out')}</span><span class="st-label">${t('logout')}</span></button></div>`;
@@ -750,18 +777,25 @@ async function renderSettings(page) {
   if (page === 'account') b.innerHTML = `<div class="st-group pad"><div class="st-h">${t('changePass')}</div><label class="st-field"><span>${t('currentPass')}</span><input type="password" id="pOld" dir="ltr" autocomplete="current-password"></label>
 <label class="st-field"><span>${t('newPass')}</span><input type="password" id="pNew" dir="ltr" minlength="8" autocomplete="new-password"></label><button class="btn primary full" id="passSave">${t('save')}</button></div>
 <div class="st-group"><button class="st-row danger" id="stLogout"><span class="st-ic">${ic('out')}</span><span class="st-label">${t('logout')}</span></button></div>`;
-  if (page === 'privacy') b.innerHTML = `<div class="st-group">${toggle('tVis', t('showOnline'), t('showOnlineNote'), myPres.visible)}${toggle('tRec', t('readReceipts'), t('readReceiptsNote'), myPres.receipts)}</div>
+  if (page === 'privacy') b.innerHTML = `<div class="st-group">${toggle('tVis', t('showOnline'), t('showOnlineNote'), myPres.visible)}${toggle('tRec', t('readReceipts'), t('readReceiptsNote'), myPres.receipts)}${toggle('tPhoto', t('photoOpen'), t('photoOpenNote'), me.photo_open !== false)}</div>
+<div class="st-group">${row('timer', 'timer', t('timerTitle'), timerLabel(prefs.msg_timer))}</div>
 <div class="st-group pad e2e"><div class="st-h">${ic('shield')} ${t('e2e')}</div><p class="muted">${t('e2eNote')}</p><p class="muted small">${t('thisDevice')}: <span dir="ltr">${esc((myDev && myDev.id || '').slice(0, 10))}</span></p></div>`;
   if (page === 'notif') b.innerHTML = `<div class="st-group">${toggle('tPush', t('newNotif'), t('notifNote'), notifOn)}</div>${installEvt || (isIOS && !installed()) ? `<div class="st-group">${row('install', 'install', t('installApp'))}</div>` : ''}`;
   if (page === 'look') b.innerHTML = `<div class="st-group">${radio('theme', 'dark', t('dark'), theme === 'dark')}${radio('theme', 'light', t('light'), theme === 'light')}${radio('theme', 'auto', t('auto'), theme === 'auto')}</div>`;
   if (page === 'lang') b.innerHTML = `<div class="st-group">${Object.entries(I18N).map(([k, v]) => radio('lang', k, v.langName, lang === k)).join('')}</div>`;
   if (page === 'people') { b.innerHTML = `<form id="pfForm" class="st-group pad addf"><div class="st-h">${ic('userPlus')} ${t('addFriends')}</div><div class="add"><input id="pfUser" dir="ltr" placeholder="${esc(t('addFriendPh'))}" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false"><button class="btn primary">${t('add')}</button></div><p id="pfMsg" class="hint"></p></form>
 <div class="st-group">${row('newgroup', 'group', t('newGroup'))}</div><div id="peopleLists"></div>`; loadFriends(); }
+  if (page === 'timer') b.innerHTML = `<p class="st-note">${t('timerNote')}</p><div class="st-group">${TIMERS.map(([v, k]) => radio('timer', v, t(k), prefs.msg_timer === v)).join('')}</div>`;
+  if (page === 'statusdur') b.innerHTML = `<p class="st-note">${t('statusDurNote')}</p><div class="st-group">${SHOURS.map(([v, k]) => radio('sdur', v, t(k), prefs.status_hours === v)).join('')}</div>`;
+  if (page.startsWith('user:')) renderProfile(b, page.slice(5));
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
 }
 $('#stBody').addEventListener('click', async e => {
   const r = e.target.closest('[data-page]'); if (r) { if (r.dataset.page === 'install') return installNow(); if (r.dataset.page === 'newgroup') return newGroup(); return openSettings(r.dataset.page); }
   const fb = e.target.closest('[data-acc],[data-dec],[data-nick],[data-rm],[data-dm]'); if (fb) return friendAction(fb);
+  const pu = e.target.closest('[data-user]'); if (pu) return openSettings('user:' + pu.dataset.user);
+  const pf = e.target.closest('[data-pf]'); if (pf) return profileAction(pf.dataset.pf, pf.dataset.id);
+  const ph = e.target.closest('[data-photo]'); if (ph) return openPhoto(ph.dataset.photo);
   if (e.target.closest('#stLogout')) return logout();
   if (e.target.closest('#photoBtn')) return $('#photoIn').click();
   if (e.target.closest('#photoDel')) return setPhoto(null);
@@ -778,6 +812,10 @@ $('#stBody').addEventListener('change', async e => {
   if (x.id === 'tVis' || x.id === 'tRec') { myPres = { visible: $('#tVis').checked, receipts: $('#tRec').checked }; await sb.from('presence').upsert({ visible: myPres.visible, receipts: myPres.receipts }, { onConflict: 'user_id' }); if (current) { updateStatus(); refreshTrail(current.id); } return; }
   if (x.id === 'tPush') { if (x.checked) await enablePush(); else await disablePush(); renderSettings('notif'); return; }
   if (x.name === 'theme') return setTheme(x.value);
+  if (x.name === 'timer') return savePrefs({ msg_timer: +x.value });
+  if (x.name === 'sdur') return savePrefs({ status_hours: +x.value });
+  if (x.id === 'tPhoto') { const on = x.checked, { error } = await sb.from('profiles').update({ photo_open: on }).eq('id', me.id); if (error) { x.checked = !on; return toast(errText(error)); }
+    me.photo_open = on; profiles.set(me.id, me); if (!on && me.avatar_url) { const f = fullPath(me.avatar_url); if (f) sb.storage.from('avatars').remove([f]).then(() => {}); } return; }
   if (x.name === 'lang') { setLang(x.value); renderSettings('lang'); }
 });
 async function setPhoto(file) {
@@ -788,9 +826,12 @@ async function setPhoto(file) {
       c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 384, 384);
       const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .86)), path = `${me.id}/${Date.now()}.jpg`;
       const { error } = await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' }); if (error) throw error;
-      url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl; }
+      url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+      if (me.photo_open !== false) { const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height)), f = document.createElement('canvas'); f.width = Math.round(bmp.width * k); f.height = Math.round(bmp.height * k);
+        f.getContext('2d').drawImage(bmp, 0, 0, f.width, f.height); const big = await new Promise(r => f.toBlob(r, 'image/jpeg', .88));
+        await sb.storage.from('avatars').upload(path.replace(/\.jpg$/, '-full.jpg'), big, { contentType: 'image/jpeg' }); } }
     const { error } = await sb.from('profiles').update({ avatar_url: url }).eq('id', me.id); if (error) throw error;
-    if (old) sb.storage.from('avatars').remove([decodeURIComponent(old)]).then(() => {});
+    if (old) sb.storage.from('avatars').remove([decodeURIComponent(old), decodeURIComponent(old).replace(/\.jpg$/, '-full.jpg')]).then(() => {});
     me.avatar_url = url; profiles.set(me.id, me); paintMe(); renderChats(); renderSettings('profile'); toast(t('photoSaved'));
   } catch (x) { toast(errText(x)); }
 }
@@ -802,6 +843,7 @@ async function logout() {
 
 // ---------- back button / swipe back: one step at a time, like a real app ----------
 addEventListener('popstate', () => {
+  if (!$('#story').hidden) return closeStory(true);
   if (stPages.length) { stPages.pop(); if (stPages.length) return renderSettings(stPages[stPages.length - 1]); return closeSettings(true); }
   if ($('#dlg').open) return $('#dlg').close();
   if (current) return closeChat(true);
@@ -851,10 +893,10 @@ function pushStart() {
 let swReg = null, reloading = false;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => { swReg = r; r.update().catch(() => {}); }).catch(() => {});
-  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open && me) openChat(e.data.open); });
+  navigator.serviceWorker.addEventListener('message', e => { const d = e.data || {}; if (!me) return; if (d.call) return checkRinging(); if (d.people) return openSettings('people'); if (d.open) openChat(d.open); });
   navigator.serviceWorker.addEventListener('controllerchange', () => {   // a new version took over: reload when it will not interrupt you
     if (reloading) return; const go = () => { reloading = true; try { sessionStorage.setItem('hamsa-updated', '1'); } catch {} location.reload(); };
-    if (!ta.value.trim() && !R.on && player.paused && !$('#dlg').open) go(); else { const u = $('#updBar'); u.textContent = t('updateReady'); u.hidden = false; u.onclick = go; }
+    if (!ta.value.trim() && !R.on && player.paused && !call && $('#story').hidden && !$('#dlg').open) go(); else { const u = $('#updBar'); u.textContent = t('updateReady'); u.hidden = false; u.onclick = go; }
   });
 }
 async function checkUpdate(manual) { if (!swReg) return false; try { await swReg.update(); } catch {} return !!(swReg.installing || swReg.waiting); }
@@ -864,3 +906,35 @@ try { if (sessionStorage.getItem('hamsa-updated')) { sessionStorage.removeItem('
 // ---------- first screen ----------
 applyLang(); setMode('in');
 sb.auth.getSession().then(({ data }) => { if (!data.session) { if (!lang) $('#lang').hidden = false; else $('#auth').hidden = false; } });
+
+// ---------- profiles ----------
+const TIMERS = [[0, 'off'], [3600, 'h1'], [86400, 'h24'], [604800, 'd7'], [2592000, 'd30']];
+const SHOURS = [[6, 'h6'], [12, 'h12'], [24, 'h24'], [48, 'h48'], [168, 'd7']];
+const timerLabel = v => t((TIMERS.find(x => x[0] === v) || [0, 'off'])[1]);
+const hoursLabel = v => t((SHOURS.find(x => x[0] === v) || [24, 'h24'])[1]);
+const fullPath = url => { const p = url && url.split('/avatars/')[1]; return p ? decodeURIComponent(p).replace(/\.jpg$/, '-full.jpg') : null; };
+$('#dlgBody').addEventListener('click', e => { const u = e.target.closest('[data-uopen]'); if (!u || u.dataset.uopen === me.id) return; $('#dlg').close(); openSettings('user:' + u.dataset.uopen); });
+async function renderProfile(b, id) {
+  const draw = () => { const p = profiles.get(id) || {}, mine = id === me.id, fr = friends.find(f => f.status === 'accepted' && (f.requester === id || f.addressee === id)), hasSt = (stories.get(id) || []).length;
+    b.innerHTML = `<div class="pf-head"><button class="pf-photo" data-photo="${id}">${avatarHtml(id, { cls: 'xxl' })}</button><h2>${esc(nameOf(id))}</h2>
+${nicks.has(id) ? `<small>${t('realName')}: ${esc(p.display_name || '')}</small>` : ''}<small dir="ltr">@${esc(p.username || '')}</small></div>
+${mine ? `<div class="st-group">${row('profile', 'edit', t('editProfile'))}</div>` : `<div class="pf-actions"><button data-pf="msg" data-id="${id}">${ic('chat')}<span>${t('message')}</span></button><button data-pf="voice" data-id="${id}">${ic('phone')}<span>${t('voiceCall')}</span></button><button data-pf="video" data-id="${id}">${ic('video')}<span>${t('videoCall')}</span></button></div>
+<div class="st-group"><button class="st-row" data-pf="nick" data-id="${id}"><span class="st-ic">${ic('edit')}</span><span class="st-label">${t('renameHere')}</span><span class="st-val">${nicks.has(id) ? esc(nicks.get(id)) : ''}</span>${ic('fwd', 'chev')}</button>
+${hasSt ? `<button class="st-row" data-pf="status" data-id="${id}"><span class="st-ic">${ic('status')}</span><span class="st-label">${t('viewStatus')}</span>${ic('fwd', 'chev')}</button>` : ''}
+${fr ? `<button class="st-row danger" data-pf="unfriend" data-id="${fr.id}"><span class="st-ic">${ic('trash')}</span><span class="st-label">${t('removeFriend')}</span></button>` : ''}</div>`}`; };
+  draw(); const { data } = await sb.from('profiles').select('*').eq('id', id).maybeSingle(); if (data) { profiles.set(id, data); if (id === me.id) me = data; if (stPages[stPages.length - 1] === 'user:' + id) draw(); }
+}
+async function dmWith(id) { const c = convs.find(x => !x.is_group && otherOf(x) === id); if (c) return c.id; const { data, error } = await sb.rpc('start_dm', { other: id }); if (error) { toast(errText(error)); return null; } await loadChats(); return data; }
+async function profileAction(a, id) {
+  if (a === 'nick') return rename(id);
+  if (a === 'status') return openStory(id);
+  if (a === 'unfriend') { if (!confirm(t('sure'))) return; await sb.from('friendships').delete().eq('id', +id); await loadFriends(); return history.back(); }
+  const conv = await dmWith(id); if (!conv) return;
+  await goChat(conv); if (a === 'voice' || a === 'video') startCall(conv, a === 'video');
+}
+function openPhoto(id) {
+  const p = profiles.get(id) || {}; if (!p.avatar_url) return;
+  if (id !== me.id && p.photo_open === false) return toast(t('photoLocked', { n: nameOf(id) }));
+  const v = document.createElement('div'); v.className = 'viewer'; const im = document.createElement('img'); im.src = p.avatar_url.replace(/\.jpg$/, '-full.jpg'); im.onerror = () => { im.onerror = null; im.src = p.avatar_url; };
+  v.appendChild(im); v.onclick = () => v.remove(); document.body.appendChild(v);
+}

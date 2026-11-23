@@ -51,7 +51,21 @@ self.I18N = {
     choosePhoto: 'Choose a photo', saveSticker: 'Save to my stickers', stickerSaved: 'Added to your stickers ✅', alreadySaved: 'Already in your stickers',
     noStickers: 'No stickers yet. Tap + to make your first one.', delSticker: 'Remove this sticker from your stickers?', editStickers: 'Edit', done: 'Done', stickerFull: 'You have the most stickers allowed (300)',
     holdToRecord: 'Hold the mic to record, let go to send', slideCancel: 'Slide to cancel', voiceCancelled: 'Recording cancelled',
-    sending: 'Sending…', notSentTap: 'Not sent · tap to try again'
+    sending: 'Sending…', notSentTap: 'Not sent · tap to try again',
+    voiceCall: 'Voice call', videoCall: 'Video call', calling: 'Calling…', ringingS: 'Ringing…', connecting: 'Connecting…', reconnecting: 'Reconnecting…',
+    incomingVoice: 'Incoming voice call', incomingVideo: 'Incoming video call', answer: 'Answer', declineCall: 'Decline', hangUp: 'End', mute: 'Mute', camera: 'Camera', flip: 'Flip',
+    callEnded: 'Call ended', callDeclined: 'Call declined', callBusy: 'Busy in another call', noAnswer: 'No answer', callFailed: 'The call could not connect. Try again, or try on Wi‑Fi.',
+    missedCall: 'Missed voice call', missedVideo: 'Missed video call', callVoiceDone: 'Voice call', callVideoDone: 'Video call', callPrev: '📞 Call', callEncrypted: 'End-to-end encrypted',
+    allowCam: 'Allow the microphone (and camera) for Hamsa to call', callUnsupported: 'This browser can not make calls', callsDmOnly: 'Calls work in private chats', inAnotherCall: 'You are already in a call',
+    timerTitle: 'Disappearing messages', timerNote: 'New messages you send will disappear after this time. Anyone in the chat can keep a message so it stays.',
+    off: 'Off', h1: '1 hour', h6: '6 hours', h12: '12 hours', h24: '24 hours', h48: '48 hours', d7: '7 days', d30: '30 days',
+    keep: 'Keep', unkeep: 'Stop keeping', keptBy: 'Kept by {n}', keptMsg: 'Kept, it will not disappear ✅', unkeptMsg: 'It will disappear on time', disappears: 'Disappears',
+    profileTitle: 'Profile', realName: 'Real name', photoLocked: '{n} keeps their photo private', photoOpen: 'Others can open my photo',
+    photoOpenNote: 'When this is off, nobody can open your photo full screen.', editProfile: 'Edit my profile', viewStatus: 'View status', chatsGroup: 'Chats',
+    statuses: 'Status', myStatus: 'My status', addStatus: 'Add a status', statusText: 'Text', statusPhoto: 'Photo', typeStatus: 'Type a status…', post: 'Share',
+    statusDur: 'Status duration', statusDurNote: 'Only your friends see your status. It disappears after this time.', seenBy: 'Seen by {n}', noViews: 'No one has seen it yet',
+    delStatus: 'Delete this status?', statusPosted: 'Status shared ✅', caption: 'Add a caption (optional)', writeSomething: 'Write something or choose a photo',
+    pushFriendReq: 'sent you a friend request 👋', pushFriendAcc: 'accepted your friend request ✅', removeFriend: 'Remove from friends'
   },
   ar: {
     dir: 'rtl', langName: 'العربية',
@@ -104,7 +118,21 @@ self.I18N = {
     choosePhoto: 'اختر صورة', saveSticker: 'احفظه في ملصقاتي', stickerSaved: 'انضاف لملصقاتك ✅', alreadySaved: 'موجود في ملصقاتك من قبل',
     noStickers: 'ما عندك ملصقات للحين. اضغط + وسوّ أول ملصق.', delSticker: 'تشيل هذا الملصق من ملصقاتك؟', editStickers: 'تعديل', done: 'تم', stickerFull: 'وصلت الحد الأعلى للملصقات (300)',
     holdToRecord: 'اضغط على المايك وخلك ضاغط عشان تسجل، وارفع إصبعك عشان ترسل', slideCancel: 'اسحب للإلغاء', voiceCancelled: 'انلغى التسجيل',
-    sending: 'جاري الإرسال…', notSentTap: 'ما انرسلت · اضغط عشان تعيد'
+    sending: 'جاري الإرسال…', notSentTap: 'ما انرسلت · اضغط عشان تعيد',
+    voiceCall: 'مكالمة صوتية', videoCall: 'مكالمة فيديو', calling: 'جاري الاتصال…', ringingS: 'يرن…', connecting: 'جاري الربط…', reconnecting: 'نعيد الاتصال…',
+    incomingVoice: 'مكالمة صوتية واردة', incomingVideo: 'مكالمة فيديو واردة', answer: 'رد', declineCall: 'رفض', hangUp: 'إنهاء', mute: 'كتم', camera: 'الكاميرا', flip: 'قلب',
+    callEnded: 'انتهت المكالمة', callDeclined: 'رفض المكالمة', callBusy: 'مشغول بمكالمة ثانية', noAnswer: 'ما رد', callFailed: 'ما قدرنا نوصل المكالمة. جرّب مرة ثانية أو جرّب على الواي فاي.',
+    missedCall: 'مكالمة صوتية فائتة', missedVideo: 'مكالمة فيديو فائتة', callVoiceDone: 'مكالمة صوتية', callVideoDone: 'مكالمة فيديو', callPrev: '📞 مكالمة', callEncrypted: 'مشفّرة بين الطرفين',
+    allowCam: 'اسمح لهمسة بالمايك (والكاميرا) عشان تتصل', callUnsupported: 'هذا المتصفح ما يدعم المكالمات', callsDmOnly: 'المكالمات في المحادثات الخاصة', inAnotherCall: 'أنت في مكالمة الحين',
+    timerTitle: 'الرسائل المؤقتة', timerNote: 'الرسائل الجديدة اللي ترسلها تختفي بعد هالمدة. أي أحد في المحادثة يقدر يحفظ رسالة عشان ما تختفي.',
+    off: 'مقفلة', h1: 'ساعة', h6: '6 ساعات', h12: '12 ساعة', h24: '24 ساعة', h48: '48 ساعة', d7: '7 أيام', d30: '30 يوم',
+    keep: 'احفظها', unkeep: 'ألغِ الحفظ', keptBy: 'حفظها {n}', keptMsg: 'انحفظت وما راح تختفي ✅', unkeptMsg: 'بتختفي في وقتها', disappears: 'تختفي',
+    profileTitle: 'الملف الشخصي', realName: 'اسمه الحقيقي', photoLocked: '{n} قافل عرض صورته', photoOpen: 'الناس يقدرون يفتحون صورتي',
+    photoOpenNote: 'إذا قفلتها، محد يقدر يفتح صورتك بالشاشة الكاملة.', editProfile: 'عدّل ملفي', viewStatus: 'شوف الحالة', chatsGroup: 'المحادثات',
+    statuses: 'الحالات', myStatus: 'حالتي', addStatus: 'أضف حالة', statusText: 'كتابة', statusPhoto: 'صورة', typeStatus: 'اكتب حالتك…', post: 'نشر',
+    statusDur: 'مدة الحالة', statusDurNote: 'حالتك يشوفها أصدقاؤك بس، وتختفي بعد هالمدة.', seenBy: 'شافها {n}', noViews: 'محد شافها للحين',
+    delStatus: 'تحذف هالحالة؟', statusPosted: 'انتشرت حالتك ✅', caption: 'اكتب تعليق (اختياري)', writeSomething: 'اكتب شي أو اختر صورة',
+    pushFriendReq: 'أرسل لك طلب صداقة 👋', pushFriendAcc: 'قبل طلب صداقتك ✅', removeFriend: 'شيله من أصدقائي'
   },
   nl: {
     dir: 'ltr', langName: 'Nederlands',
@@ -157,6 +185,20 @@ self.I18N = {
     choosePhoto: 'Kies een foto', saveSticker: 'Bewaar bij mijn stickers', stickerSaved: 'Toegevoegd aan je stickers ✅', alreadySaved: 'Staat al bij je stickers',
     noStickers: 'Nog geen stickers. Tik op + om je eerste te maken.', delSticker: 'Deze sticker uit je stickers halen?', editStickers: 'Bewerken', done: 'Klaar', stickerFull: 'Je hebt het maximum aantal stickers (300)',
     holdToRecord: 'Houd de microfoon ingedrukt om op te nemen, laat los om te sturen', slideCancel: 'Schuif om te annuleren', voiceCancelled: 'Opname geannuleerd',
-    sending: 'Versturen…', notSentTap: 'Niet verstuurd · tik om opnieuw te proberen'
+    sending: 'Versturen…', notSentTap: 'Niet verstuurd · tik om opnieuw te proberen',
+    voiceCall: 'Spraakoproep', videoCall: 'Videogesprek', calling: 'Bellen…', ringingS: 'Gaat over…', connecting: 'Verbinden…', reconnecting: 'Opnieuw verbinden…',
+    incomingVoice: 'Inkomende spraakoproep', incomingVideo: 'Inkomend videogesprek', answer: 'Opnemen', declineCall: 'Weigeren', hangUp: 'Ophangen', mute: 'Dempen', camera: 'Camera', flip: 'Draaien',
+    callEnded: 'Gesprek beëindigd', callDeclined: 'Oproep geweigerd', callBusy: 'In gesprek', noAnswer: 'Geen antwoord', callFailed: 'Het gesprek kon niet verbinden. Probeer opnieuw, of via wifi.',
+    missedCall: 'Gemiste spraakoproep', missedVideo: 'Gemist videogesprek', callVoiceDone: 'Spraakoproep', callVideoDone: 'Videogesprek', callPrev: '📞 Oproep', callEncrypted: 'End-to-end versleuteld',
+    allowCam: 'Geef Hamsa toegang tot de microfoon (en camera) om te bellen', callUnsupported: 'Deze browser kan niet bellen', callsDmOnly: 'Bellen kan in privéchats', inAnotherCall: 'Je bent al in gesprek',
+    timerTitle: 'Verdwijnende berichten', timerNote: 'Nieuwe berichten die je stuurt verdwijnen na deze tijd. Iedereen in de chat kan een bericht bewaren.',
+    off: 'Uit', h1: '1 uur', h6: '6 uur', h12: '12 uur', h24: '24 uur', h48: '48 uur', d7: '7 dagen', d30: '30 dagen',
+    keep: 'Bewaren', unkeep: 'Niet meer bewaren', keptBy: 'Bewaard door {n}', keptMsg: 'Bewaard, het verdwijnt niet ✅', unkeptMsg: 'Het verdwijnt op tijd', disappears: 'Verdwijnt',
+    profileTitle: 'Profiel', realName: 'Echte naam', photoLocked: '{n} houdt de foto privé', photoOpen: 'Anderen mogen mijn foto openen',
+    photoOpenNote: 'Als dit uit staat, kan niemand je foto op volledig scherm openen.', editProfile: 'Mijn profiel bewerken', viewStatus: 'Status bekijken', chatsGroup: 'Chats',
+    statuses: 'Status', myStatus: 'Mijn status', addStatus: 'Status toevoegen', statusText: 'Tekst', statusPhoto: 'Foto', typeStatus: 'Typ een status…', post: 'Delen',
+    statusDur: 'Duur van status', statusDurNote: 'Alleen je vrienden zien je status. Hij verdwijnt na deze tijd.', seenBy: 'Gezien door {n}', noViews: 'Nog niemand heeft hem gezien',
+    delStatus: 'Deze status verwijderen?', statusPosted: 'Status gedeeld ✅', caption: 'Bijschrift (optioneel)', writeSomething: 'Schrijf iets of kies een foto',
+    pushFriendReq: 'heeft je een vriendschapsverzoek gestuurd 👋', pushFriendAcc: 'heeft je verzoek geaccepteerd ✅', removeFriend: 'Verwijderen uit vrienden'
   }
 };

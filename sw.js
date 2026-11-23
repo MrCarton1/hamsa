@@ -1,8 +1,8 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v11';
-const SHELL = ['./', './index.html', './style.css?v=311', './app.js?v=311', './config.js?v=311', './crypto.js?v=311', './i18n.js?v=311', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v12';
+const SHELL = ['./', './index.html', './style.css?v=320', './app.js?v=320', './calls.js?v=320', './stories.js?v=320', './config.js?v=320', './crypto.js?v=320', './i18n.js?v=320', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
@@ -28,16 +28,18 @@ self.addEventListener('push', e => {
     let lang = 'en'; try { lang = (await HC.pref('lang')) || 'en'; } catch {}
     const T = (self.I18N[lang] || self.I18N.en);
     let body = T.notifTitle;
-    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker;
+    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker; else if (d.k === 'call') body = T.callPrev;
+    if (d.k === 'ring') return self.registration.showNotification(d.title || 'همسة', { body: d.v ? T.incomingVideo : T.incomingVoice, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'call-' + d.call, renotify: true, requireInteraction: true, vibrate: [500, 250, 500, 250, 500, 250, 500], dir: T.dir, lang, data: { conv: d.conv, call: d.call } });
+    if (d.k === 'freq' || d.k === 'facc') return self.registration.showNotification(d.title || 'همسة', { body: d.k === 'freq' ? T.pushFriendReq : T.pushFriendAcc, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'friend', renotify: true, dir: T.dir, lang, data: { people: d.k === 'freq' } });
     if (d.e) { try { const me = await HC.current(); if (me) { const r = await HC.open({ ct: d.e.ct, iv: d.e.iv, keys: { [me.id]: d.e.k } }, me, d.e.sp); if (r.payload.t) body = (d.k === 'image' ? T.photo + ' ' : '') + r.payload.t; } } catch {} }
     await self.registration.showNotification(d.title || 'همسة', { body: String(body).slice(0, 180), icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: T.dir, lang, data: { conv: d.conv } });
   })());
 });
 
 self.addEventListener('notificationclick', e => {
-  e.notification.close(); const conv = e.notification.data && e.notification.data.conv;
+  e.notification.close(); const d = e.notification.data || {}, conv = d.conv;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(wins => {
-    const w = wins[0]; if (w) { w.postMessage({ open: conv }); return w.focus(); }
-    return self.clients.openWindow(new URL('./?c=' + (conv || ''), self.registration.scope).href);
+    const w = wins[0]; if (w) { w.postMessage(d.call ? { call: d.call } : d.people ? { people: 1 } : { open: conv }); return w.focus(); }
+    return self.clients.openWindow(new URL(d.call ? './?call=' + d.call : d.people ? './?people=1' : './?c=' + (conv || ''), self.registration.scope).href);
   }));
 });

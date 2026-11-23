@@ -386,3 +386,110 @@ dialog label.chk span{flex:1}
 @media (prefers-reduced-motion:reduce){.trail.s0 i,.chev-s::before,.reclock .up,.stk.shake,.stkpanel{animation:none}}
 .bar .icons .plus{color:var(--lamp);background:var(--lamp-soft)}
 .bar .icons .plus:hover{background:var(--lamp);color:var(--lamp-ink)}
+
+/* ===== v3.2: statuses, calls, profiles, disappearing messages ===== */
+.st-note{color:var(--muted);font-size:14px;line-height:1.6;margin:2px 6px 12px}
+/* the status strip at the top of the chats */
+.stories{display:flex;gap:4px;overflow-x:auto;padding:12px 10px 4px;scrollbar-width:none;flex:none}
+.stories::-webkit-scrollbar{display:none}
+.story{display:flex;flex-direction:column;align-items:center;gap:5px;width:70px;flex:none;padding:2px}
+.story small{font-size:12px;color:var(--muted);max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.story .ring{position:relative;padding:3px;border-radius:36%;background:var(--line)}
+.story .ring.new{background:conic-gradient(var(--lamp),#E0607E,#7C6CF0,var(--lamp))}
+.story .ring.own{background:var(--lamp-soft)}
+.story .ring .av{width:54px;height:54px;box-shadow:0 0 0 3px var(--panel);font-size:21px}
+.plus-b{position:absolute;bottom:-2px;inset-inline-end:-2px;width:22px;height:22px;border-radius:50%;background:var(--lamp);color:var(--lamp-ink);display:grid;place-items:center;box-shadow:0 0 0 2px var(--panel)}
+.plus-b .ic{width:14px;height:14px;stroke-width:2.6}
+.search{margin-top:6px!important}
+/* making a status */
+.sm-box{position:relative;border-radius:18px;min-height:220px;display:grid;place-items:center;overflow:hidden;margin:4px 0 8px;transition:background .2s}
+.sm-box textarea{width:100%;min-height:200px;background:none;border:0;outline:0;resize:none;color:#fff;text-align:center;font-size:24px!important;font-weight:600;padding:24px 16px;line-height:1.45}
+.sm-box textarea::placeholder{color:rgba(255,255,255,.7)}
+.sm-box img{max-width:100%;max-height:300px;display:block}
+.sm-bgs button{width:30px;height:30px;min-height:30px;padding:0;border-radius:50%;border:2px solid transparent}
+.sm-bgs button.on{border-color:var(--text);transform:scale(1.12)}
+#smMode button{display:inline-flex;align-items:center;gap:6px}
+#smMode .ic{width:17px;height:17px}
+dialog #smCap{margin-bottom:4px}
+/* watching statuses */
+.story-view{position:fixed;inset:0;z-index:12;background:#000;color:#fff;display:flex;flex-direction:column;opacity:0;transition:opacity .2s}
+.story-view.open{opacity:1}
+.sv-bars{display:flex;gap:4px;padding:max(10px,env(safe-area-inset-top)) 10px 6px;position:relative;z-index:2}
+.sv-bars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}
+.sv-bars b{display:block;height:100%;background:#fff;width:0}
+[dir=rtl] .sv-bars b{margin-inline-start:0}
+.sv-head{display:flex;align-items:center;gap:10px;padding:4px 10px 8px;position:relative;z-index:2}
+.sv-who{flex:1;min-width:0}.sv-who b{display:block;font-size:15px}.sv-who small{color:rgba(255,255,255,.7);font-size:12px}
+.sv-btn{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;color:#fff}
+.sv-btn:hover{background:rgba(255,255,255,.12)}
+.sv-body{flex:1;position:relative;display:grid;place-items:center;min-height:0;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sv-text{position:absolute;inset:0;display:grid;place-items:center;padding:30px 24px;text-align:center}
+.sv-text span{font-size:clamp(22px,6vw,34px);font-weight:600;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-width:640px}
+.sv-img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}
+.sv-cap{position:absolute;bottom:18px;inset-inline:16px;text-align:center;background:rgba(0,0,0,.45);padding:10px 14px;border-radius:14px;font-size:16px}
+.sv-load{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sv-foot{display:flex;justify-content:center;gap:12px;padding:10px 10px max(16px,env(safe-area-inset-bottom));min-height:20px}
+.sv-foot button{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:16px;background:rgba(255,255,255,.14);color:#fff;font-weight:600}
+.sv-foot .ic{width:20px;height:20px}
+@media (min-width:761px){.story-view{background:rgba(5,6,20,.96)}.sv-body{max-width:460px;width:100%;margin:0 auto;border-radius:20px;overflow:hidden}}
+
+/* a call */
+.call{position:fixed;inset:0;z-index:14;display:flex;flex-direction:column;align-items:center;color:#fff;background:#0d0f2b;overflow:hidden;opacity:0;transition:opacity .25s}
+.call.open{opacity:1}
+.call::before{content:'';position:absolute;inset:-40px;background:var(--bg) center/cover,radial-gradient(80% 60% at 50% 20%,#3b3487,#0d0f2b);filter:blur(36px) brightness(.45);transform:scale(1.1)}
+#callRemote{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;pointer-events:none;background:#000}
+.call.has-video #callRemote{opacity:1}
+.call-top{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:max(64px,calc(env(safe-area-inset-top) + 40px));text-align:center;padding:0 20px}
+.call-top .av{width:112px;height:112px;font-size:44px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.call-top b{font-size:26px;font-weight:600;margin-top:10px}
+#callState{font-size:16px;color:rgba(255,255,255,.8);font-variant-numeric:tabular-nums}
+.call-e2e{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,.6);margin-top:4px}
+.call-e2e .ic{width:13px;height:13px}
+.call:not(.live) .call-top .av{animation:callpulse 1.8s ease-in-out infinite}
+@keyframes callpulse{50%{box-shadow:0 0 0 14px rgba(255,170,92,.18),0 10px 40px rgba(0,0,0,.4)}}
+.call.has-video .call-top{margin-top:max(20px,env(safe-area-inset-top));flex-direction:row;gap:10px;background:rgba(0,0,0,.35);padding:8px 14px;border-radius:18px}
+.call.has-video .call-top .av{width:36px;height:36px;font-size:15px;animation:none}
+.call.has-video .call-top b{font-size:16px;margin:0}
+.call.has-video .call-e2e{display:none}
+#callLocal{position:absolute;z-index:3;width:110px;height:150px;object-fit:cover;border-radius:16px;top:max(76px,calc(env(safe-area-inset-top) + 64px));inset-inline-end:14px;background:#000;box-shadow:0 6px 24px rgba(0,0,0,.5);transform:scaleX(-1)}
+.call:not(.has-video) #callLocal{top:auto;bottom:150px}
+.call-btns{position:relative;z-index:2;margin-top:auto;display:flex;justify-content:center;gap:18px;padding:20px 16px max(34px,calc(env(safe-area-inset-bottom) + 20px));width:100%}
+.cb{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;min-width:64px}
+.cb>span{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);transition:background .15s,transform .12s}
+.cb:active>span{transform:scale(.92)}
+.cb .ic{width:26px;height:26px}
+.cb small{font-size:12px;color:rgba(255,255,255,.85)}
+.cb.on>span{background:#fff;color:#141634}
+.cb.red>span{background:#E5484D}
+.cb.red .ic{transform:rotate(135deg)}
+.cb.green>span{background:#2FB36A;animation:answer 1.2s ease-in-out infinite}
+@keyframes answer{50%{transform:scale(1.08)}}
+#callIn{gap:90px}
+#callIn .cb>span{width:70px;height:70px}
+
+/* profiles */
+.pf-head{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:10px 0 16px}
+.pf-head h2{margin:10px 0 0;font-size:24px}
+.pf-head small{color:var(--muted)}
+.pf-photo{border-radius:30%;padding:0}
+.pf-photo:active{transform:scale(.97)}
+.pf-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.pf-actions button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:18px;background:var(--panel);color:var(--lamp);font-size:13px;font-weight:600}
+.pf-actions button span{color:var(--text)}
+.pf-actions button:hover{background:var(--raised)}
+.pf-link{cursor:pointer;text-align:start;padding:0}
+button.pf-link{border-radius:32%}
+.frow.pf-open{cursor:pointer;border-radius:12px}
+.frow.pf-open:hover{background:var(--raised)}
+#roomTitle,#roomAv{cursor:pointer}
+
+/* calls and disappearing messages in the chat */
+.callmsg{display:flex;align-items:center;gap:10px;padding:4px 2px;font-weight:600;color:inherit;text-align:start}
+.callmsg .ic{width:20px;height:20px;padding:7px;box-sizing:content-box;border-radius:50%;background:rgba(0,0,0,.12)}
+.callmsg.miss .ic{color:var(--danger);background:rgba(255,122,133,.16)}
+.m.mine .callmsg.miss .ic{color:#8A1220}
+.tmark,.kmark{display:inline-flex;opacity:.75}
+.kmark{color:var(--lamp)}.m.mine .kmark{color:var(--lamp-ink)}
+.ic.tiny{width:12px;height:12px}
+@media (prefers-reduced-motion:reduce){.call:not(.live) .call-top .av,.cb.green>span,.sv-load{animation:none}}
