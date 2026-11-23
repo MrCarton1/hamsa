@@ -1,6 +1,16 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.1';
+const VERSION = '3.1.1';
+// If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
+if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel')) {
+  (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
+    if (self.caches) for (const k of await caches.keys()) await caches.delete(k);
+    await Promise.all(['./', './index.html', './style.css', './app.js', './i18n.js', './crypto.js', './config.js', './sw.js'].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+    const r = await navigator.serviceWorker?.getRegistration(); if (r) await r.update().catch(() => {});
+  } finally { location.reload(); } })();
+  throw new Error('[hamsa] old page in cache, refreshing');
+}
+try { sessionStorage.removeItem('hamsa-fix'); } catch {}
 const sb = supabase.createClient(HAMSA.url, HAMSA.key);
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -211,7 +221,7 @@ async function goChat(id) {   // leave the friends sheet and open the chat in it
   if (stPages.length) { closeSettings(true); history.replaceState({ v: 'chat' }, ''); openChat(id, true); } else openChat(id);
 }
 async function addFriend() {
-  const u = $('#addUser').value.trim().toLowerCase().replace(/^@/, ''), msg = $('#addMsg'); msg.textContent = '';
+  const u = $('#pfUser').value.trim().toLowerCase().replace(/^@/, ''), msg = $('#pfMsg'); msg.textContent = '';
   if (!u) return; if (u === me.username) return msg.textContent = t('thatsYou');
   const { data: p } = await sb.from('profiles').select('*').eq('username', u).maybeSingle(); if (!p) return msg.textContent = t('noUser');
   profiles.set(p.id, p);
@@ -220,7 +230,7 @@ async function addFriend() {
   if (ex && ex.requester === p.id) { await sb.rpc('respond_friend', { fid: ex.id, accept: true }); msg.textContent = t('theyAsked'); }
   else if (ex) return msg.textContent = t('alreadyAsked');
   else { const { error } = await sb.from('friendships').insert({ addressee: p.id }); if (error) return msg.textContent = errText(error); msg.textContent = t('sentReq', { n: p.display_name }); }
-  $('#addUser').value = ''; loadFriends();
+  $('#pfUser').value = ''; loadFriends();
 }
 async function friendAction(b) {
   if (b.dataset.acc) await sb.rpc('respond_friend', { fid: +b.dataset.acc, accept: true });
@@ -745,7 +755,7 @@ async function renderSettings(page) {
   if (page === 'notif') b.innerHTML = `<div class="st-group">${toggle('tPush', t('newNotif'), t('notifNote'), notifOn)}</div>${installEvt || (isIOS && !installed()) ? `<div class="st-group">${row('install', 'install', t('installApp'))}</div>` : ''}`;
   if (page === 'look') b.innerHTML = `<div class="st-group">${radio('theme', 'dark', t('dark'), theme === 'dark')}${radio('theme', 'light', t('light'), theme === 'light')}${radio('theme', 'auto', t('auto'), theme === 'auto')}</div>`;
   if (page === 'lang') b.innerHTML = `<div class="st-group">${Object.entries(I18N).map(([k, v]) => radio('lang', k, v.langName, lang === k)).join('')}</div>`;
-  if (page === 'people') { b.innerHTML = `<form id="addFriend" class="st-group pad addf"><div class="st-h">${ic('userPlus')} ${t('addFriends')}</div><div class="add"><input id="addUser" dir="ltr" placeholder="${esc(t('addFriendPh'))}" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false"><button class="btn primary">${t('add')}</button></div><p id="addMsg" class="hint"></p></form>
+  if (page === 'people') { b.innerHTML = `<form id="pfForm" class="st-group pad addf"><div class="st-h">${ic('userPlus')} ${t('addFriends')}</div><div class="add"><input id="pfUser" dir="ltr" placeholder="${esc(t('addFriendPh'))}" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false"><button class="btn primary">${t('add')}</button></div><p id="pfMsg" class="hint"></p></form>
 <div class="st-group">${row('newgroup', 'group', t('newGroup'))}</div><div id="peopleLists"></div>`; loadFriends(); }
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
 }
@@ -761,7 +771,7 @@ $('#stBody').addEventListener('click', async e => {
     const { error } = await sb.auth.updateUser({ password: n }); if (error) return toast(errText(error)); await sb.auth.signOut({ scope: 'others' }); $('#pOld').value = $('#pNew').value = ''; return toast(t('passChanged')); }
   if (e.target.closest('#updBtn')) { const had = await checkUpdate(true); if (!had) toast(t('upToDate')); }
 });
-$('#stBody').addEventListener('submit', e => { if (e.target.id === 'addFriend') { e.preventDefault(); addFriend(); } });
+$('#stBody').addEventListener('submit', e => { if (e.target.id === 'pfForm') { e.preventDefault(); addFriend(); } });
 $('#stBody').addEventListener('change', async e => {
   const x = e.target;
   if (x.id === 'photoIn' && x.files[0]) return setPhoto(x.files[0]);

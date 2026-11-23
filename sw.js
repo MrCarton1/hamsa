@@ -1,11 +1,11 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v10';
-const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './crypto.js', './i18n.js', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v11';
+const SHELL = ['./', './index.html', './style.css?v=311', './app.js?v=311', './config.js?v=311', './crypto.js?v=311', './i18n.js?v=311', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
-self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 
 self.addEventListener('fetch', e => {
@@ -13,8 +13,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || !(u.origin === location.origin || u.href.startsWith('https://cdn.jsdelivr.net/'))) return;
   // newest version when the internet answers within 3 seconds, otherwise the saved copy
   e.respondWith(caches.open(CACHE).then(async c => {
-    const hit = await c.match(req, { ignoreSearch: true });
-    const net = fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });
+    const hit = await c.match(req, { ignoreSearch: req.mode === 'navigate' });
+    const net = fetch(u.origin === location.origin ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });
     if (!hit) return net;
     return Promise.race([net.catch(() => hit), new Promise(r => setTimeout(() => r(hit), 3000))]);
   }));
