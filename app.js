@@ -351,7 +351,7 @@ function afterRename() { loadFriends(); renderChats(); if (current) { $('#roomNa
 
 // ---------- settings ----------
 $('#settingsBtn').onclick = () => {
-  const dark = document.documentElement.dataset.theme !== 'light', notif = pushOK() && Notification.permission === 'granted';
+  const dark = document.documentElement.dataset.theme !== 'light', notif = subOn;   // notif = this phone is getting push notifications now
   dialog(`<h3>⚙️ الإعدادات</h3><div class="scroll set">
 <div class="sec">حسابي</div>
 <label>اسمك (يظهر لأصدقائك)<input id="sName" maxlength="40" value="${esc(me.display_name)}"></label>
@@ -373,7 +373,7 @@ $('#settingsBtn').onclick = () => {
     if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTicks(current.id); } }
     if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
     if (wantNotif && !notif) await enablePush();
-    if (!wantNotif && notif) { try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {} bell(); toast('وقفت الإشعارات على هالجوال'); }
+    if (!wantNotif && notif) await turnOff();
     toast('تم حفظ الإعدادات ✅'); });
   const d = $('#dlg'), prev = d.onclose; d.onclose = () => d.returnValue === 'logout' ? logout() : prev();
 };
@@ -400,6 +400,10 @@ if (isIOS && !installed()) $('#installBtn').hidden = false;
 const iosHelp = () => dialog(`<h3>ثبّت همسة على جوالك</h3><ol class="steps"><li>افتح هالصفحة في <b>Safari</b>.</li><li>اضغط زر المشاركة <b>⬆️</b> تحت.</li><li>اختر <b>«إضافة إلى الشاشة الرئيسية»</b> ثم <b>إضافة</b>.</li><li>افتح همسة من الأيقونة الجديدة، وفعّل الإشعارات 🔔.</li></ol><p class="muted">في الآيفون الإشعارات تشتغل بس بعد ما تثبّته بهالطريقة.</p><div class="row"><button value="x" class="btn primary">تمام</button></div>`);
 $('#installBtn').onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#installBtn').hidden = true; } else if (isIOS) iosHelp(); };
 
+// Push state: subOn = this phone has an active push subscription right now.
+// PUSH_OFF = the user turned notifications off on this phone; the app then does not turn them back on by itself on the next open.
+const PUSH_OFF = 'hamsa-push-off';
+let subOn = false;
 const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
 const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
 // asks the browser for permission. Call it straight from a tap (no await before it), or the browser blocks the popup.
@@ -412,7 +416,8 @@ function askPermission() {
 }
 async function subscribe(quiet) {
   const reg = await withTimeout(navigator.serviceWorker.ready, 8000, 'التطبيق ما جهز بعد، سكّره وافتحه من جديد وجرب');
-  const { publicKey } = await fetch(HAMSA.url + '/functions/v1/push', { headers: { apikey: HAMSA.key } }).then(r => r.json()).catch(() => ({}));
+  const res = await withTimeout(fetch(HAMSA.url + '/functions/v1/push', { headers: { apikey: HAMSA.key } }), 8000, 'ما قدرت أوصل للخادم، تأكد من الإنترنت').catch(x => { throw x; });
+  const { publicKey } = await res.json().catch(() => ({}));
   if (!publicKey) throw new Error('ما وصل مفتاح الإشعارات من الخادم، جرب بعد شوي');
   let sub = await reg.pushManager.getSubscription();
   for (let i = 0; i < 2; i++) {
@@ -423,7 +428,18 @@ async function subscribe(quiet) {
     await sub.unsubscribe(); sub = null;   // this browser was linked to another account: make a fresh link
     if (i) throw error;
   }
-  bell(); if (!quiet) toast('تم تفعيل الإشعارات ✅ بتوصلك الرسائل حتى والتطبيق مقفل');
+  try { localStorage.removeItem(PUSH_OFF); } catch {}
+  subOn = true; bell(); if (!quiet) toast('تم تفعيل الإشعارات ✅ بتوصلك الرسائل حتى والتطبيق مقفل');
+}
+// turns notifications off on this phone: removes the server link first, so no push is sent to this phone anymore
+async function turnOff() {
+  try {
+    const reg = await withTimeout(navigator.serviceWorker.ready, 8000, 'التطبيق ما جهز بعد، جرب بعد شوي');
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) { const { error } = await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); if (error) throw error; await sub.unsubscribe(); }
+  } catch (x) { return toast('ما قدرت أوقف الإشعارات: ' + errText(x)); }
+  try { localStorage.setItem(PUSH_OFF, '1'); } catch {}
+  subOn = false; bell(); toast('وقفت الإشعارات على هالجوال. تقدر تفعّلها متى تبي');
 }
 async function enablePush() {
   if (!pushOK()) return isIOS && !installed() ? iosHelp() : toast(isIOS ? 'ثبّت همسة على الشاشة الرئيسية عشان تفعّل الإشعارات' : 'هالمتصفح ما يدعم الإشعارات');
@@ -433,16 +449,18 @@ async function enablePush() {
   try { await subscribe(false); } catch (x) { toast('ما قدرت أفعّل الإشعارات: ' + errText(x)); }
   $('#pushBar').hidden = true;
 }
-// the bell shows the real state: on / blocked / needs install (iPhone) / not supported
+// the bell shows the real state: on / off / blocked / needs install (iPhone) / not supported
 function bell() {
-  const ok = pushOK(), perm = ok ? Notification.permission : 'unsupported', on = perm === 'granted';
+  const ok = pushOK(), perm = ok ? Notification.permission : 'unsupported', on = subOn && perm === 'granted';
   let tip = 'فعّل الإشعارات';
-  if (on) tip = 'الإشعارات شغالة';
+  if (on) tip = 'الإشعارات شغالة. اضغط عشان توقفها على هالجوال';
   else if (perm === 'denied') tip = 'الإشعارات مقفلة من المتصفح';
   else if (!ok) tip = isIOS && !installed() ? 'ثبّت همسة على الشاشة الرئيسية عشان تفعّل الإشعارات' : 'المتصفح ما يدعم الإشعارات';
   $('#bellBtn').textContent = on ? '🔔' : '🔕'; $('#bellBtn').title = tip;
 }
 $('#bellBtn').onclick = () => {
+  // on -> off (tap again to turn off). Off -> on: asks for permission right away from the tap if needed.
+  if (subOn) { if (!confirm('توقف الإشعارات على هالجوال؟')) return; return turnOff(); }
   if (pushOK() && Notification.permission === 'granted') return subscribe(false).catch(x => toast('ما قدرت أفعّل الإشعارات: ' + errText(x)));
   enablePush();
 };
@@ -451,7 +469,11 @@ $('#pushNo').onclick = () => { $('#pushBar').hidden = true; try { localStorage.s
 function pushStart() {
   bell();
   if (!pushOK()) { $('#pushBar').hidden = true; return; }   // not supported (or iPhone not installed yet): no bar
-  if (Notification.permission === 'granted') return subscribe(true).catch(() => {});
+  if (Notification.permission === 'granted') {
+    let off = false; try { off = !!localStorage.getItem(PUSH_OFF); } catch {}
+    if (off) { subOn = false; bell(); return; }   // the user turned it off on this phone: keep it off
+    return subscribe(true).catch(() => { subOn = false; bell(); });
+  }
   let later = 0; try { later = +localStorage.getItem('hamsa-push-later') || 0; } catch {}
   $('#pushBar').hidden = Notification.permission !== 'default' || Date.now() - later < 3 * 864e5;
 }
