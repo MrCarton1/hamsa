@@ -41,7 +41,7 @@ $('#authForm').onsubmit = async e => {
     } else { const { error } = await sb.auth.signInWithPassword({ email, password: p }); if (error) throw error; }
   } catch (x) { msg.textContent = errText(x); } finally { btn.disabled = false; }
 };
-async function logout() { if (!confirm('تبي تسجل خروج؟')) return; await presence({ viewing_conv: null, viewing_at: null });
+async function logout() { if (!confirm('تبي تسجل خروج؟')) return; await sb.rpc('touch_presence', { c: null });
   try { const reg = await navigator.serviceWorker?.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
   await sb.auth.signOut(); }
 
@@ -62,7 +62,7 @@ async function startNow(user) {
   $('#meName').textContent = p.display_name; $('#meUser').textContent = '@' + p.username; avatar($('#meAvatar'), p.display_name, p.id);
   const [{ data: nk }, { data: pr }] = await Promise.all([sb.from('contact_names').select('target,name'), sb.from('presence').select('*').eq('user_id', p.id).maybeSingle()]);
   nicks = new Map((nk || []).map(x => [x.target, x.name])); if (pr) myPres = { visible: pr.visible, receipts: pr.receipts };
-  await Promise.all([loadChats(), loadFriends()]); await live(); presence({ last_seen: new Date().toISOString() }); delivered();
+  await Promise.all([loadChats(), loadFriends()]); await live(); syncClock(); viewing(false); delivered();
   const want = new URLSearchParams(location.search).get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
   pushStart();
 }
@@ -76,20 +76,17 @@ async function needProfiles(ids) {
 const nameOf = id => nicks.get(id) || (profiles.get(id) || {}).display_name || '…';
 
 // ---------- chats list ----------
-async function loadChats() {
-  const { data: mine, error } = await sb.from('members').select('conversation_id,last_read,conversations(id,is_group,name,last_at)').eq('user_id', me.id);
+async function loadChats() {   // one database call for all chats (last message + unread count), then one for the members
+  const { data: mine, error } = await sb.rpc('my_chats');
   if (error) return toast(errText(error));
-  const ids = (mine || []).map(m => m.conversation_id);
+  const ids = (mine || []).map(m => m.id);
   members.clear();
   if (ids.length) { const { data: all } = await sb.from('members').select('conversation_id,user_id,role,delivered_at,seen_at,last_read').in('conversation_id', ids);
     (all || []).forEach(m => { if (!members.has(m.conversation_id)) members.set(m.conversation_id, []); members.get(m.conversation_id).push(m); });
     await needProfiles((all || []).map(m => m.user_id)); }
-  convs = await Promise.all((mine || []).filter(m => m.conversations).map(async m => {
-    const c = { ...m.conversations, last_read: m.last_read };
-    const { data: last } = await sb.from('messages').select('id,sender_id,kind,body,deleted,created_at').eq('conversation_id', c.id).order('id', { ascending: false }).limit(1);
-    c.last = last && last[0];
-    const { count } = await sb.from('messages').select('id', { count: 'exact', head: true }).eq('conversation_id', c.id).neq('sender_id', me.id).gt('created_at', c.last_read);
-    c.unread = current && current.id === c.id ? 0 : count || 0; return c; }));
+  convs = (mine || []).map(m => ({ id: m.id, is_group: m.is_group, name: m.name, last_at: m.last_at, last_read: m.last_read,
+    last: m.last_id ? { id: m.last_id, conversation_id: m.id, sender_id: m.last_sender, kind: m.last_kind, body: m.last_body, deleted: m.last_deleted, created_at: m.last_created } : null,
+    unread: current && current.id === m.id ? 0 : Number(m.unread) || 0 }));
   convs.sort((a, b) => new Date((b.last && b.last.created_at) || b.last_at) - new Date((a.last && a.last.created_at) || a.last_at));
   renderChats();
 }
@@ -185,7 +182,7 @@ function closeChat() { viewing(false); current = null; $('#app').classList.remov
 $('#backBtn').onclick = closeChat;
 const scrollDown = () => { const b = $('#msgs'); b.scrollTop = b.scrollHeight; };
 async function markRead() { if (!current) return; const now = new Date().toISOString(); current.last_read = now;
-  await sb.from('members').update(myPres.receipts ? { last_read: now, delivered_at: now, seen_at: now } : { last_read: now, delivered_at: now }).eq('conversation_id', current.id).eq('user_id', me.id); }
+  await sb.rpc('mark_read', { c: current.id, receipts: myPres.receipts }); }   // the server's clock, not the phone's
 
 function msgHtml(m) {
   const mine = m.sender_id === me.id, q = m.reply_to && msgsById.get(m.reply_to);
@@ -309,8 +306,14 @@ async function resync() {
 }
 // presence: "online" and "inside this chat". The server also uses it to skip phone notifications for a chat you have open.
 // when "show my status" is off, nothing about being online or inside a chat is sent at all (not just hidden on screen)
-async function presence(row) { if (!me) return; const r = myPres.visible ? row : { ...row, last_seen: null, viewing_conv: null, viewing_at: null }; await sb.from('presence').upsert(r, { onConflict: 'user_id' }); }
-const viewing = on => presence(on && current ? { last_seen: new Date().toISOString(), viewing_conv: current.id, viewing_at: new Date().toISOString() } : { last_seen: new Date().toISOString(), viewing_conv: null, viewing_at: null });
+// always sent: the server needs "inside this chat" to skip phone notifications. When you hide your status,
+// the database itself stops your friends from reading it (rule presence_read in setup.sql).
+async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
+// times come from the server's clock: a phone whose clock is a bit wrong would otherwise break ✓✓ and "online"
+const viewing = on => me ? sb.rpc('touch_presence', { c: on && current ? current.id : null }).then(() => {}) : null;
+let skew = 0;   // server time minus phone time
+async function syncClock() { const t0 = Date.now(), { data } = await sb.rpc('server_now'); if (data) skew = new Date(data).getTime() - (t0 + Date.now()) / 2; }
+const srvNow = () => Date.now() + skew;
 setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 12000);
 // "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds).
 // If a call comes too soon, it is run again when the 2 seconds are over, so the last message gets its ✓✓ too.
@@ -319,7 +322,7 @@ function delivered() {
   if (!me) return;
   const wait = 2000 - (Date.now() - delT);
   if (wait > 0) { if (!delPend) delPend = setTimeout(() => { delPend = null; delivered(); }, wait); return; }
-  delT = Date.now(); sb.from('members').update({ delivered_at: new Date().toISOString() }).eq('user_id', me.id).then(() => {});
+  delT = Date.now(); sb.rpc('mark_delivered').then(() => {});
 }
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ seen (by everyone in the chat)
@@ -337,13 +340,13 @@ function refreshTicks(convId) {
 
 // the line under the name: inside the chat now / online / last seen
 function subtitle(c) { return c.is_group ? (members.get(c.id) || []).map(m => m.user_id === me.id ? 'أنت' : nameOf(m.user_id)).join('، ') : '@' + ((profiles.get(((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id) || {}).username || ''); }
-const ago = d => { const s = (Date.now() - new Date(d)) / 1000; if (s < 3600) return `قبل ${Math.max(1, Math.round(s / 60))} دقيقة`; if (new Date(d).toDateString() === new Date().toDateString()) return 'اليوم ' + fmtTime(d); return fmtDay(d) + ' ' + fmtTime(d); };
+const ago = d => { const s = (srvNow() - new Date(d)) / 1000; if (s < 3600) return `قبل ${Math.max(1, Math.round(s / 60))} دقيقة`; if (new Date(d).toDateString() === new Date().toDateString()) return 'اليوم ' + fmtTime(d); return fmtDay(d) + ' ' + fmtTime(d); };
 async function updateStatus() {
   const c = current; if (!c || !me) return; const el = $('#roomSub');
   if (!myPres.visible) { el.textContent = subtitle(c); el.className = ''; return; }   // you hide yours, so you don't see others'
   const ids = (members.get(c.id) || []).map(m => m.user_id).filter(id => id !== me.id);
   const { data } = await sb.from('presence').select('user_id,last_seen,viewing_conv,viewing_at').in('user_id', ids); if (current !== c) return;
-  const now = Date.now(), inChat = (data || []).filter(p => p.viewing_conv === c.id && p.viewing_at && now - new Date(p.viewing_at) < 30000), online = (data || []).filter(p => p.last_seen && now - new Date(p.last_seen) < 35000);
+  const now = srvNow(), inChat = (data || []).filter(p => p.viewing_conv === c.id && p.viewing_at && now - new Date(p.viewing_at) < 30000), online = (data || []).filter(p => p.last_seen && now - new Date(p.last_seen) < 35000);
   if (!c.is_group) {
     const p = (data || [])[0];
     el.textContent = inChat.length ? '● داخل المحادثة الحين' : online.length ? '● متصل' : p && p.last_seen ? 'آخر ظهور ' + ago(p.last_seen) : subtitle(c);
