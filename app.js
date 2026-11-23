@@ -99,7 +99,7 @@ function renderChats() {
   list.innerHTML = shown.map(c => { const t = convTitle(c), other = c.is_group ? c.id : ((members.get(c.id) || []).find(m => m.user_id !== me.id) || {}).user_id;
     const mineLast = c.last && c.last.sender_id === me.id && !c.last.deleted, who = c.is_group && c.last && !c.last.deleted && !mineLast ? nameOf(c.last.sender_id) + ': ' : '';
     return `<li data-c="${c.id}" class="${current && current.id === c.id ? 'on' : ''}"><span class="av" style="background:${colorOf(other)}">${c.is_group ? '👥' : esc(t.charAt(0))}</span>
-<div class="mid"><b>${esc(t)}</b><small>${mineLast ? ticks(c.last, c.id) + ' ' : ''}${esc(who + preview(c.last))}</small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<br><span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
+<div class="mid"><b>${esc(t)}</b><small>${esc(who + preview(c.last))}</small></div><div class="end">${c.last ? short(c.last.created_at) : ''}${c.unread ? `<br><span class="pill">${c.unread}</span>` : ''}</div></li>`; }).join('')
     || `<p class="hint" style="padding:18px">${q ? 'ما فيه نتائج' : 'ما عندك محادثات للحين. روح «الأصدقاء» وأضف صديق.'}</p>`;
   const u = convs.reduce((a, c) => a + c.unread, 0); $('#unreadAll').hidden = !u; $('#unreadAll').textContent = u;
 }
@@ -192,7 +192,7 @@ function msgHtml(m) {
   if (!m.deleted && m.kind === 'voice') body = `<audio controls preload="none" data-media="${esc(m.media_path)}"></audio>`;
   return `${current.is_group && !mine ? `<div class="who" style="color:${colorOf(m.sender_id)}">${esc(nameOf(m.sender_id))}</div>` : ''}
 ${q ? `<div class="q" data-jump="${q.id}"><b>${esc(q.sender_id === me.id ? 'أنت' : nameOf(q.sender_id))}</b>: ${esc(q.deleted ? 'رسالة محذوفة' : preview(q))}</div>` : ''}
-<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? 'معدّلة · ' : ''}${fmtTime(m.created_at)}${mine && !m.deleted ? ' <span class="tick">' + ticks(m, current.id) + '</span>' : ''}</div>
+<div class="body">${body}</div><div class="meta">${m.edited_at && !m.deleted ? 'معدّلة · ' : ''}${fmtTime(m.created_at)}</div>
 ${m.deleted ? '' : `<div class="tools"><button data-act="reply" title="رد">↩</button>${mine && m.kind === 'text' ? '<button data-act="edit" title="تعديل">✏️</button>' : ''}${mine ? '<button data-act="del" title="حذف">🗑</button>' : ''}${m.kind === 'text' ? '<button data-act="copy" title="نسخ">📋</button>' : ''}</div>`}`;
 }
 let lastDay = '';
@@ -287,9 +287,6 @@ async function live() {
       if (eventType === 'UPDATE' && f.status === 'accepted' && f.requester === me.id) toast(`✅ ${nameOf(f.addressee)} قبل طلب صداقتك`);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'members', filter: `user_id=eq.${me.id}` }, () => loadChats())
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, ({ new: r }) => {   // someone received / read: update the ticks
-      const list = members.get(r.conversation_id); const x = list && list.find(m => m.user_id === r.user_id); if (!x || r.user_id === me.id) return;
-      Object.assign(x, { delivered_at: r.delivered_at, seen_at: r.seen_at, last_read: r.last_read }); refreshTicks(r.conversation_id); })
     .subscribe();
 }
 
@@ -311,7 +308,7 @@ async function resync() {
 // always sent: the server needs "inside this chat" to skip phone notifications. When you hide your status,
 // the database itself stops your friends from reading it (rule presence_read in setup.sql).
 async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
-// times come from the server's clock: a phone whose clock is a bit wrong would otherwise break ✓✓ and "online"
+// times come from the server's clock: a phone whose clock is a bit wrong would otherwise break "online"
 const viewing = on => me ? sb.rpc('touch_presence', { c: on && current ? current.id : null, on_line: true }).then(() => {}) : null;
 // leaving the app: "offline" at once. keepalive lets the request finish even while the phone closes the app.
 function goOffline() {
@@ -323,26 +320,13 @@ async function syncClock() { const t0 = Date.now(), { data } = await sb.rpc('ser
 const srvNow = () => Date.now() + skew;
 setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 10000);
 // "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds).
-// If a call comes too soon, it is run again when the 2 seconds are over, so the last message gets its ✓✓ too.
+// If a call comes too soon, it is run again when the 2 seconds are over, so the last message is also delivered.
 let delT = 0, delPend = null;
 function delivered() {
   if (!me) return;
   const wait = 2000 - (Date.now() - delT);
   if (wait > 0) { if (!delPend) delPend = setTimeout(() => { delPend = null; delivered(); }, wait); return; }
   delT = Date.now(); sb.rpc('mark_delivered').then(() => {});
-}
-
-// ✓ sent · ✓✓ delivered · blue ✓✓ seen (by everyone in the chat)
-function ticks(m, convId) {
-  const others = (members.get(convId) || []).filter(x => x.user_id !== me.id), t = new Date(m.created_at).getTime(), at = v => v && new Date(v).getTime() >= t;
-  if (!others.length) return '<i class="t1">✓</i>';
-  if (myPres.receipts && others.every(x => at(x.seen_at))) return '<i class="t3" title="شافها">✓✓</i>';
-  if (others.every(x => at(x.delivered_at) || at(x.seen_at))) return '<i class="t2" title="وصلت">✓✓</i>';
-  return '<i class="t1" title="انرسلت">✓</i>';
-}
-function refreshTicks(convId) {
-  if (current && current.id === convId) document.querySelectorAll('.m.mine').forEach(el => { const m = msgsById.get(+el.dataset.id), s = el.querySelector('.tick'); if (m && s) s.innerHTML = ticks(m, convId); });
-  renderChats();
 }
 
 // the line under the name: inside the chat now / online / last seen
@@ -388,17 +372,16 @@ $('#settingsBtn').onclick = () => {
 <label class="chk"><input type="checkbox" id="sNotif" ${notif ? 'checked' : ''}> إشعارات الرسائل على جوالي</label>
 <div class="sec">الخصوصية</div>
 <label class="chk"><input type="checkbox" id="sVis" ${myPres.visible ? 'checked' : ''}> أصدقائي يشوفون إني متصل أو داخل المحادثة</label>
-<label class="chk"><input type="checkbox" id="sRec" ${myPres.receipts ? 'checked' : ''}> علامة القراءة الزرقاء ✓✓</label>
-<p class="muted">إذا قفلت وحدة منهم، أنت بعد ما تشوفها عند غيرك.</p>
+<p class="muted">إذا قفلته، أنت بعد ما تشوف حالة أصدقائك.</p>
 <div class="sec">المظهر</div>
 <label class="chk"><input type="radio" name="sTheme" value="dark" ${dark ? 'checked' : ''}> داكن</label><label class="chk"><input type="radio" name="sTheme" value="light" ${dark ? '' : 'checked'}> فاتح</label>
 <div class="sec">كلمة السر</div>
 <input id="sPass" type="password" dir="ltr" minlength="6" placeholder="كلمة سر جديدة (اتركها فاضية إذا ما تبي تغيرها)" autocomplete="new-password">
 </div><div class="row"><button value="logout" class="btn danger">تسجيل الخروج</button><button value="x" class="btn">إلغاء</button><button value="ok" class="btn primary">حفظ</button></div>`, async () => {
-    const name = $('#sName').value.trim(), vis = $('#sVis').checked, rec = $('#sRec').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
+    const name = $('#sName').value.trim(), vis = $('#sVis').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
     setTheme(theme);
     if (name && name !== me.display_name) { const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id); if (error) return toast(errText(error)); me.display_name = name; profiles.set(me.id, me); $('#meName').textContent = name; avatar($('#meAvatar'), name, me.id); }
-    if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTicks(current.id); } }
+    if (vis !== myPres.visible) { myPres = { visible: vis, receipts: myPres.receipts }; await presence({ visible: vis, receipts: myPres.receipts }); if (current) updateStatus(); }
     if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
     if (wantNotif && !notif) await enablePush();
     if (!wantNotif && notif) await turnOff();
