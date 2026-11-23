@@ -47,8 +47,14 @@ async function logout() { if (!confirm('تبي تسجل خروج؟')) return; aw
 
 sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => session ? start(session.user) : stop(), 0); });
 
+// start() can be called twice at once (INITIAL_SESSION + SIGNED_IN). The guard stops two sets of channels and double unread counts.
+let busyUid = null;
 async function start(user) {
-  if (me && me.id === user.id) return;
+  if ((me && me.id === user.id) || busyUid === user.id) return;
+  busyUid = user.id;
+  try { await startNow(user); } finally { busyUid = null; }
+}
+async function startNow(user) {
   let p = null; for (let i = 0; i < 5 && !p; i++) { ({ data: p } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle()); if (!p) await new Promise(r => setTimeout(r, 600)); }
   if (!p) { toast('ما لقيت ملفك الشخصي'); return; }
   me = p; profiles.set(p.id, p);
@@ -60,7 +66,7 @@ async function start(user) {
   const want = new URLSearchParams(location.search).get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
   pushStart();
 }
-function stop() { me = null; nicks = new Map(); current = null; convs = []; profiles.clear(); members.clear(); sb.removeAllChannels(); $('#app').hidden = true; $('#auth').hidden = false; $('#room').hidden = true; $('#empty').hidden = false; }
+function stop() { me = null; nicks = new Map(); current = null; convs = []; friends = []; profiles.clear(); members.clear(); msgsById.clear(); sb.removeAllChannels(); $('#app').classList.remove('open'); $('#app').hidden = true; $('#auth').hidden = false; $('#room').hidden = true; $('#empty').hidden = false; }
 
 // ---------- people ----------
 async function needProfiles(ids) {
@@ -170,7 +176,8 @@ async function openChat(id) {
   $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
   renderChats(); $('#msgs').innerHTML = '<div class="day">جاري التحميل…</div>';
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
-  if (current !== c) return; if (error) return toast(errText(error));
+  if (current !== c) return;
+  if (error) { $('#msgs').innerHTML = ''; return toast(errText(error)); }   // no more stuck "loading" text
   $('#msgs').innerHTML = ''; (data || []).reverse().forEach(m => addMsg(m)); scrollDown(); markRead(); viewing(true);
   if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
@@ -205,7 +212,8 @@ $('#msgs').onclick = async e => {
   const m = e.target.closest('.m'); if (!m) return; const msg = msgsById.get(+m.dataset.id);
   document.querySelectorAll('.m.show').forEach(x => x !== m && x.classList.remove('show')); m.classList.toggle('show');
   const jump = e.target.closest('[data-jump]'); if (jump) { const t = document.querySelector(`.m[data-id="${jump.dataset.jump}"]`); if (t) { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.add('flash'); setTimeout(() => t.classList.remove('flash'), 1500); } return; }
-  if (e.target.tagName === 'IMG' && e.target.src) { const v = document.createElement('div'); v.className = 'viewer'; v.innerHTML = `<img src="${e.target.src}">`; v.onclick = () => v.remove(); document.body.appendChild(v); return; }
+  // the picture viewer builds its element with the DOM (no HTML string), so the link is never read as markup
+  if (e.target.tagName === 'IMG' && e.target.src) { const v = document.createElement('div'), img = document.createElement('img'); v.className = 'viewer'; img.src = e.target.src; v.appendChild(img); v.onclick = () => v.remove(); document.body.appendChild(v); return; }
   const act = e.target.closest('[data-act]'); if (!act || !msg) return; const a = act.dataset.act;
   if (a === 'reply') { replyTo = msg; $('#replyText').textContent = (msg.sender_id === me.id ? 'أنت' : nameOf(msg.sender_id)) + ': ' + preview(msg); $('#replyBox').hidden = false; $('#text').focus(); }
   if (a === 'copy') { try { await navigator.clipboard.writeText(msg.body); toast('نسخت الرسالة'); } catch {} }
@@ -240,7 +248,9 @@ $('#fileIn').onchange = async e => { const f = e.target.files[0]; e.target.value
 async function shrink(f) {   // big photos are resized to save the free storage
   if (!/image\/(png|jpeg|webp)/.test(f.type)) return { blob: f, ext: (f.type.split('/')[1] || 'png'), type: f.type };
   const bmp = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);   // transparent PNG parts would turn black in JPEG without this
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .85)); return { blob, ext: 'jpg', type: 'image/jpeg' };
 }
 // voice notes: tap to start, tap again to send
@@ -298,11 +308,19 @@ async function resync() {
   }
 }
 // presence: "online" and "inside this chat". The server also uses it to skip phone notifications for a chat you have open.
-async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
+// when "show my status" is off, nothing about being online or inside a chat is sent at all (not just hidden on screen)
+async function presence(row) { if (!me) return; const r = myPres.visible ? row : { ...row, last_seen: null, viewing_conv: null, viewing_at: null }; await sb.from('presence').upsert(r, { onConflict: 'user_id' }); }
 const viewing = on => presence(on && current ? { last_seen: new Date().toISOString(), viewing_conv: current.id, viewing_at: new Date().toISOString() } : { last_seen: new Date().toISOString(), viewing_conv: null, viewing_at: null });
 setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 12000);
-// "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds)
-let delT = 0; function delivered() { if (!me || Date.now() - delT < 2000) return; delT = Date.now(); sb.from('members').update({ delivered_at: new Date().toISOString() }).eq('user_id', me.id).then(() => {}); }
+// "delivered": my phone got the new messages (all my chats at once, at most every 2 seconds).
+// If a call comes too soon, it is run again when the 2 seconds are over, so the last message gets its ✓✓ too.
+let delT = 0, delPend = null;
+function delivered() {
+  if (!me) return;
+  const wait = 2000 - (Date.now() - delT);
+  if (wait > 0) { if (!delPend) delPend = setTimeout(() => { delPend = null; delivered(); }, wait); return; }
+  delT = Date.now(); sb.from('members').update({ delivered_at: new Date().toISOString() }).eq('user_id', me.id).then(() => {});
+}
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ seen (by everyone in the chat)
 function ticks(m, convId) {
