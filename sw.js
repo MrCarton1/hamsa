@@ -1,7 +1,8 @@
-// همسة · service worker: opens fast (saved copy of the app) and shows notifications when the app is closed.
-importScripts('config.js');   // self.HAMSA: the server address, to say "delivered"
-const CACHE = 'hamsa-v8';
-const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './icon.svg', './icon-192.png', './manifest.json',
+// همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
+// Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
+importScripts('config.js', 'crypto.js', 'i18n.js');
+const CACHE = 'hamsa-v9';
+const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './crypto.js', './i18n.js', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -10,7 +11,7 @@ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Pr
 self.addEventListener('fetch', e => {
   const req = e.request, u = new URL(req.url);
   if (req.method !== 'GET' || !(u.origin === location.origin || u.href.startsWith('https://cdn.jsdelivr.net/'))) return;
-  // newest version from the internet when it answers within 3 seconds, otherwise the saved copy (fast on weak signal)
+  // newest version when the internet answers within 3 seconds, otherwise the saved copy
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(req, { ignoreSearch: true });
     const net = fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });
@@ -20,11 +21,16 @@ self.addEventListener('fetch', e => {
 });
 
 self.addEventListener('push', e => {
-  let d = {}; try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch {}
   e.waitUntil((async () => {
-    // tell the server this phone received it: the sender's trail lights its second dot, even with the app closed
+    // tell the server "it reached this phone": the sender's second dot lights up
     if (d.ack && self.HAMSA) fetch(self.HAMSA.url + '/functions/v1/push', { method: 'POST', headers: { apikey: self.HAMSA.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ ack: d.ack }) }).catch(() => {});
-    await self.registration.showNotification(d.title || 'همسة', { body: d.body || 'رسالة جديدة', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: 'rtl', lang: 'ar', data: { conv: d.conv } });
+    let lang = 'en'; try { lang = (await HC.pref('lang')) || 'en'; } catch {}
+    const T = (self.I18N[lang] || self.I18N.en);
+    let body = T.notifTitle;
+    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice;
+    if (d.e) { try { const me = await HC.current(); if (me) { const r = await HC.open({ ct: d.e.ct, iv: d.e.iv, keys: { [me.id]: d.e.k } }, me, d.e.sp); if (r.payload.t) body = (d.k === 'image' ? T.photo + ' ' : '') + r.payload.t; } } catch {} }
+    await self.registration.showNotification(d.title || 'همسة', { body: String(body).slice(0, 180), icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: T.dir, lang, data: { conv: d.conv } });
   })());
 });
 

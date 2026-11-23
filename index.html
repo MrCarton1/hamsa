@@ -1,13 +1,12 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://cvepsuziphhcvpctwako.supabase.co wss://cvepsuziphhcvpctwako.supabase.co; img-src 'self' blob: https://cvepsuziphhcvpctwako.supabase.co; media-src 'self' blob: https://cvepsuziphhcvpctwako.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://cvepsuziphhcvpctwako.supabase.co wss://cvepsuziphhcvpctwako.supabase.co; img-src 'self' blob: data: https://cvepsuziphhcvpctwako.supabase.co; media-src 'self' blob: https://cvepsuziphhcvpctwako.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'">
 <meta name="theme-color" content="#1A1D42">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
-<title>همسة</title>
+<meta name="referrer" content="no-referrer">
+<title>همسة · Hamsa</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -15,21 +14,35 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="همسة">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- first time: choose a language (shown in English) -->
+<section id="lang" class="langpick" hidden>
+  <img src="icon.svg" alt="" class="logo">
+  <h1>Hamsa · همسة</h1>
+  <p class="muted">Choose your language</p>
+  <div class="langs">
+    <button data-lang="ar"><b>العربية</b><small>Arabic</small></button>
+    <button data-lang="en"><b>English</b><small>English</small></button>
+    <button data-lang="nl"><b>Nederlands</b><small>Dutch</small></button>
+  </div>
+</section>
+
 <!-- sign in / sign up -->
 <section id="auth" class="auth" hidden>
   <div class="auth-card">
     <img src="icon.svg" alt="" class="logo">
     <h1>همسة</h1>
-    <p class="muted">كلام قريب، بينك وبين ناسك</p>
-    <div class="tabs"><button class="on" data-mode="in">تسجيل الدخول</button><button data-mode="up">حساب جديد</button></div>
+    <p class="muted" data-t="tagline"></p>
+    <div class="tabs"><button class="on" data-mode="in" data-t="signIn"></button><button data-mode="up" data-t="signUp"></button></div>
     <form id="authForm" autocomplete="on">
-      <label class="up">اسمك (يظهر للناس)<input id="fName" maxlength="40" autocomplete="name"></label>
-      <label>اسم المستخدم (إنجليزي)<input id="fUser" dir="ltr" maxlength="20" autocomplete="username" placeholder="ahmed_01" required></label>
-      <label>كلمة السر<input id="fPass" type="password" dir="ltr" autocomplete="current-password" required></label>
-      <button class="btn primary" id="authBtn">دخول</button>
+      <label class="up"><span data-t="yourName"></span><input id="fName" maxlength="40" autocomplete="name"></label>
+      <label><span data-t="username"></span><input id="fUser" dir="ltr" maxlength="20" autocomplete="username" placeholder="ahmed_01" required></label>
+      <label><span data-t="password"></span><input id="fPass" type="password" dir="ltr" autocomplete="current-password" required></label>
+      <button class="btn primary" id="authBtn"></button>
       <p id="authMsg" class="err"></p>
     </form>
   </div>
@@ -40,48 +53,61 @@
   <aside id="side" class="side">
     <header class="bar">
       <h1 class="wordmark">همسة</h1>
-      <div class="icons"><button id="installBtn" title="ثبّت التطبيق" hidden>📲</button><button id="bellBtn" title="الإشعارات">🔕</button><button id="newGroupBtn" title="قروب جديد">👥</button><button id="settingsBtn" class="me" title="الإعدادات وحسابي"><span id="meAvatar" class="av"></span><span class="me-text"><b id="meName"></b><small id="meUser" dir="ltr"></small></span></button></div>
+      <div class="icons">
+        <button id="installBtn" data-ic="install" data-ttl="installApp" hidden></button>
+        <button id="newGroupBtn" data-ic="group" data-ttl="newGroup"></button>
+        <button id="settingsBtn" class="me" data-ttl="settings"><span id="meAvatar" class="av"></span></button>
+      </div>
     </header>
-    <div id="pushBar" class="pushbar" hidden><span>🔔 فعّل الإشعارات عشان توصلك الرسائل حتى والتطبيق مقفل</span><button id="pushYes" class="btn small primary">تفعيل</button><button id="pushNo" class="btn small">لاحقاً</button></div>
-    <nav class="seg"><button class="on" data-view="chats">المحادثات <span id="unreadAll" class="pill" hidden></span></button><button data-view="friends">الأصدقاء <span id="reqCount" class="pill" hidden></span></button></nav>
+    <div id="pushBar" class="pushbar" hidden><span data-t="pushBar"></span><button id="pushYes" class="btn small primary" data-t="turnOn"></button><button id="pushNo" class="btn small ghost" data-t="later"></button></div>
+    <nav class="seg"><button class="on" data-view="chats"><span data-t="chats"></span> <span id="unreadAll" class="pill" hidden></span></button><button data-view="friends"><span data-t="friends"></span> <span id="reqCount" class="pill" hidden></span></button></nav>
     <div id="chatsView">
-      <input id="search" class="search" placeholder="🔍 ابحث في المحادثات">
+      <input id="search" class="search" data-tph="search">
       <ul id="chatList" class="list"></ul>
     </div>
     <div id="friendsView" hidden>
-      <form id="addFriend" class="add"><input id="addUser" dir="ltr" placeholder="اسم المستخدم لصديقك" maxlength="20"><button class="btn primary">إضافة</button></form>
+      <form id="addFriend" class="add"><input id="addUser" dir="ltr" data-tph="addFriendPh" maxlength="20"><button class="btn primary" data-t="add"></button></form>
       <p id="addMsg" class="hint"></p>
       <div id="friendsBox"></div>
     </div>
   </aside>
 
   <section id="chat" class="chat">
-    <div id="empty" class="empty"><img src="icon.svg" alt=""><h2>همسة</h2><p>اختر محادثة، أو أضف صديق من «الأصدقاء» وابدأ تسولف.</p></div>
+    <div id="empty" class="empty"><img src="icon.svg" alt=""><h2>همسة</h2><p data-t="noChats"></p></div>
     <div id="room" hidden>
       <header class="bar">
-        <button id="backBtn" class="back">→</button>
+        <button id="backBtn" class="back" data-ic="back" data-ttl="back"></button>
         <span id="roomAv" class="av"></span>
         <div class="title"><b id="roomName"></b><small id="roomSub"></small></div>
-        <div class="icons"><button id="infoBtn" title="معلومات">ⓘ</button></div>
+        <div class="icons"><button id="infoBtn" data-ic="info" data-ttl="members"></button></div>
       </header>
       <div id="msgs" class="msgs"></div>
-      <div id="replyBox" class="replybox" hidden><div><b>رد على</b> <span id="replyText"></span></div><button id="replyX">✕</button></div>
+      <div id="replyBox" class="replybox" hidden><div><b data-t="replyTo"></b> <span id="replyText"></span></div><button id="replyX">✕</button></div>
       <form id="composer" class="composer">
-        <button type="button" id="attachBtn" title="صورة">📎</button>
-        <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp" hidden>
-        <textarea id="text" rows="1" placeholder="اكتب رسالة" maxlength="4000"></textarea>
-        <button type="button" id="micBtn" title="رسالة صوتية">🎤</button>
-        <button id="sendBtn" class="send" title="إرسال">➤</button>
+        <button type="button" id="attachBtn" data-ic="attach" data-ttl="photo"></button>
+        <input type="file" id="fileIn" accept="image/*" hidden>
+        <textarea id="text" rows="1" data-tph="typeMsg" maxlength="4000"></textarea>
+        <button type="button" id="micBtn" data-ic="mic" data-ttl="voice"></button>
+        <button id="sendBtn" class="send" data-ic="send"></button>
       </form>
     </div>
   </section>
 </main>
 
+<!-- settings: its own screen with pages -->
+<section id="settings" class="settings" hidden>
+  <header class="st-bar"><button id="stBack" class="back show" data-ic="back" data-ttl="back"></button><b id="stTitle"></b></header>
+  <div id="stBody" class="st-body"></div>
+</section>
+
 <dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
 <div id="toast" class="toast" hidden></div>
+<div id="updBar" class="updbar" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
+<script src="crypto.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
