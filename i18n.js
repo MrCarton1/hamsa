@@ -65,7 +65,7 @@ self.I18N = {
     statuses: 'Status', myStatus: 'My status', addStatus: 'Add a status', statusText: 'Text', statusPhoto: 'Photo', typeStatus: 'Type a status…', post: 'Share',
     statusDur: 'Status duration', statusDurNote: 'Only your friends see your status. It disappears after this time.', seenBy: 'Seen by {n}', noViews: 'No one has seen it yet',
     delStatus: 'Delete this status?', statusPosted: 'Status shared ✅', caption: 'Add a caption (optional)', writeSomething: 'Write something or choose a photo',
-    pushFriendReq: 'sent you a friend request 👋', pushFriendAcc: 'accepted your friend request ✅', removeFriend: 'Remove from friends'
+    pushFriendReq: 'sent you a friend request 👋', pushFriendAcc: 'accepted your friend request ✅', removeFriend: 'Remove from friends', statusVideo: 'Video', videoPrep: 'Preparing the video… {p}%', uploading: 'Uploading…', videoTooBig: 'This video is too big for this phone to send. Try a shorter one.', videoLong: 'Only the first minute will be shared', tapSound: 'Tap for sound'
   },
   ar: {
     dir: 'rtl', langName: 'العربية',
@@ -132,7 +132,7 @@ self.I18N = {
     statuses: 'الحالات', myStatus: 'حالتي', addStatus: 'أضف حالة', statusText: 'كتابة', statusPhoto: 'صورة', typeStatus: 'اكتب حالتك…', post: 'نشر',
     statusDur: 'مدة الحالة', statusDurNote: 'حالتك يشوفها أصدقاؤك بس، وتختفي بعد هالمدة.', seenBy: 'شافها {n}', noViews: 'محد شافها للحين',
     delStatus: 'تحذف هالحالة؟', statusPosted: 'انتشرت حالتك ✅', caption: 'اكتب تعليق (اختياري)', writeSomething: 'اكتب شي أو اختر صورة',
-    pushFriendReq: 'أرسل لك طلب صداقة 👋', pushFriendAcc: 'قبل طلب صداقتك ✅', removeFriend: 'شيله من أصدقائي'
+    pushFriendReq: 'أرسل لك طلب صداقة 👋', pushFriendAcc: 'قبل طلب صداقتك ✅', removeFriend: 'شيله من أصدقائي', statusVideo: 'فيديو', videoPrep: 'نجهّز الفيديو… {p}%', uploading: 'جاري الرفع…', videoTooBig: 'الفيديو كبير على هالجوال. جرّب فيديو أقصر.', videoLong: 'بتنزل أول دقيقة بس من الفيديو', tapSound: 'اضغط عشان الصوت'
   },
   nl: {
     dir: 'ltr', langName: 'Nederlands',
@@ -199,6 +199,6 @@ self.I18N = {
     statuses: 'Status', myStatus: 'Mijn status', addStatus: 'Status toevoegen', statusText: 'Tekst', statusPhoto: 'Foto', typeStatus: 'Typ een status…', post: 'Delen',
     statusDur: 'Duur van status', statusDurNote: 'Alleen je vrienden zien je status. Hij verdwijnt na deze tijd.', seenBy: 'Gezien door {n}', noViews: 'Nog niemand heeft hem gezien',
     delStatus: 'Deze status verwijderen?', statusPosted: 'Status gedeeld ✅', caption: 'Bijschrift (optioneel)', writeSomething: 'Schrijf iets of kies een foto',
-    pushFriendReq: 'heeft je een vriendschapsverzoek gestuurd 👋', pushFriendAcc: 'heeft je verzoek geaccepteerd ✅', removeFriend: 'Verwijderen uit vrienden'
+    pushFriendReq: 'heeft je een vriendschapsverzoek gestuurd 👋', pushFriendAcc: 'heeft je verzoek geaccepteerd ✅', removeFriend: 'Verwijderen uit vrienden', statusVideo: 'Video', videoPrep: 'Video voorbereiden… {p}%', uploading: 'Uploaden…', videoTooBig: 'Deze video is te groot om te versturen. Probeer een kortere.', videoLong: 'Alleen de eerste minuut wordt gedeeld', tapSound: 'Tik voor geluid'
   }
 };

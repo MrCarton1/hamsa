@@ -1,8 +1,8 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.2';
+const VERSION = '3.2.1';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
-if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories')) {
+if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
     if (self.caches) for (const k of await caches.keys()) await caches.delete(k);
     await Promise.all(['./', './index.html', './style.css', './app.js', './i18n.js', './crypto.js', './config.js', './sw.js'].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
@@ -38,6 +38,7 @@ const P = {
   camOff: 'M3 7h12v10H3zM15 10.5l6-3.5v10l-6-3.5M3 3l18 18', flip: 'M4 9h12l-3-3M20 15H8l3 3', timer: 'M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3',
   chat: 'M4 5h16v11H9l-5 4z', eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   status: 'M12 3a9 9 0 0 1 0 18M12 21a9 9 0 0 1-6.4-2.6M3.6 15.5A9 9 0 0 1 3 12M3.6 8.5A9 9 0 0 1 5.6 5.6M8.5 3.6A9 9 0 0 1 12 3M12 8v8M8 12h8',
+  sound: 'M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11', soundOff: 'M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6',
   photo: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5v.01', text: 'M5 6h14M12 6v13',
   reply: 'M10 7L4 12l6 5M4 12h10a6 6 0 0 1 6 6', edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4', trash: 'M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13', copy: 'M8 8h11v12H8zM5 16V4h11'
 };
