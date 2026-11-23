@@ -1,7 +1,7 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v9';
+const CACHE = 'hamsa-v10';
 const SHELL = ['./', './index.html', './style.css', './app.js', './config.js', './crypto.js', './i18n.js', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
@@ -28,7 +28,7 @@ self.addEventListener('push', e => {
     let lang = 'en'; try { lang = (await HC.pref('lang')) || 'en'; } catch {}
     const T = (self.I18N[lang] || self.I18N.en);
     let body = T.notifTitle;
-    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice;
+    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker;
     if (d.e) { try { const me = await HC.current(); if (me) { const r = await HC.open({ ct: d.e.ct, iv: d.e.iv, keys: { [me.id]: d.e.k } }, me, d.e.sp); if (r.payload.t) body = (d.k === 'image' ? T.photo + ' ' : '') + r.payload.t; } } catch {} }
     await self.registration.showNotification(d.title || 'همسة', { body: String(body).slice(0, 180), icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: T.dir, lang, data: { conv: d.conv } });
   })());

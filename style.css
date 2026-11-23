@@ -72,7 +72,7 @@ input,textarea{font:inherit;color:var(--text)}
 .seg button{flex:1;min-height:40px;border-radius:12px;color:var(--muted);font-weight:600}
 .seg .on{background:var(--panel);color:var(--text);box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .pill{display:inline-block;min-width:22px;padding:0 7px;border-radius:11px;background:var(--lamp);color:var(--lamp-ink);font-size:12px;font-weight:700;line-height:22px;text-align:center}
-.search{margin:6px 12px 8px;width:calc(100% - 24px)}
+.search{margin:12px 12px 8px;width:calc(100% - 24px)}
 #chatsView,#friendsView{flex:1;overflow:auto;min-height:0}
 .list{list-style:none;margin:0;padding:4px 8px}
 .list li{display:flex;gap:12px;align-items:center;padding:10px;min-height:72px;cursor:pointer;border-radius:16px}
@@ -294,3 +294,95 @@ dialog label.chk span{flex:1}
 }
 .updbar{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:10;background:var(--lamp);color:var(--lamp-ink);padding:10px 16px;border-radius:14px;font-weight:600;box-shadow:var(--shadow);cursor:pointer}
 @media (prefers-reduced-motion:reduce){.settings,.side,.chat,.st-body.page-in.go{transition:none}}
+
+/* ===== v3.1: + button, instant sending, voice like a real messenger, stickers ===== */
+.ic.fill{fill:currentColor;stroke:none}
+.plus{position:relative}
+.dot-pill{position:absolute;top:3px;inset-inline-end:3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--lamp);color:var(--lamp-ink);font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--panel)}
+.st-sec{padding:2px 8px 8px;color:var(--muted);font-size:13px;font-weight:600}
+.addf .add{padding:0}.addf .add input{min-height:48px;margin:0}.addf .hint{padding:0}
+.st-group .frow{margin:0;border-radius:0;padding:10px 14px}
+.st-group .frow+.frow{border-top:1px solid var(--line)}
+.st-group .frow .btn.small{flex:none}
+
+/* a message on its way: the three dots breathe until it lands */
+.trail.s0 i{animation:breathe 1.1s ease-in-out infinite;opacity:.35}
+.trail.s0 i:nth-child(2){animation-delay:.18s}.trail.s0 i:nth-child(3){animation-delay:.36s}
+@keyframes breathe{40%{opacity:1;transform:scale(1.15)}}
+.m.pend1{opacity:.92}
+.m.pend2{cursor:pointer;box-shadow:0 0 0 2px var(--danger)}
+.failed{font-weight:600;color:var(--danger)}
+.m.mine .failed{color:#8A1220}
+.m.mine.pend2{opacity:.85}
+
+/* the composer: mic when empty, send when there are words */
+.composer{position:relative}
+.mic{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:transform .16s,background .16s,color .16s}
+.mic.hold{transform:scale(1.45);background:var(--lamp)!important;color:var(--lamp-ink)!important;border-radius:50%!important;box-shadow:0 6px 24px rgba(255,170,92,.45)}
+.mic.send{background:var(--lamp)!important;color:var(--lamp-ink)!important}
+#stkBtn.on{color:var(--lamp);background:var(--lamp-soft)}
+.composer.recording>textarea,.composer.recording>#stkBtn,.composer.recording>#attachBtn{display:none}
+.recbar{flex:1;display:flex;align-items:center;gap:10px;min-height:46px;padding:0 6px;overflow:hidden;min-width:0}
+.rdot{width:10px;height:10px;border-radius:50%;background:var(--danger);flex:none;animation:pulse 1s infinite}
+#recTime{font-variant-numeric:tabular-nums;font-weight:600;min-width:40px}
+.slide{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:14px;white-space:nowrap}
+.chev-s::before{content:'‹';font-size:20px;line-height:1;display:inline-block;animation:nudge 1.2s ease-in-out infinite}
+[dir=rtl] .chev-s::before{content:'›';animation-name:nudgeR}
+@keyframes nudge{50%{transform:translateX(-4px)}}@keyframes nudgeR{50%{transform:translateX(4px)}}
+.rdel{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:var(--danger);margin-inline-start:auto}
+.composer.locked .slide{display:none}
+.reclock{position:absolute;bottom:70px;inset-inline-end:13px;width:42px;padding:10px 0 8px;border-radius:21px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);pointer-events:none;transition:transform .05s}
+.reclock .ic{width:18px;height:18px}
+.reclock .up{width:8px;height:8px;border-top:2px solid currentColor;border-left:2px solid currentColor;transform:rotate(45deg);animation:rise 1.2s ease-in-out infinite}
+@keyframes rise{50%{transform:translateY(-4px) rotate(45deg)}}
+
+/* the voice bubble */
+.m.vmsg{width:min(300px,84%);max-width:min(300px,84%)}
+.voice{display:flex;align-items:center;gap:10px;padding:4px 0 0}
+.vplay{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--lamp);color:var(--lamp-ink);transition:transform .12s}
+.vplay:active{transform:scale(.92)}
+.vplay .ic{width:20px;height:20px}
+.m.mine .vplay{background:var(--lamp-ink);color:var(--lamp)}
+.voice.loading .vplay{animation:pulse .9s infinite}
+.vmain{flex:1;min-width:0}
+.wave{display:flex;align-items:center;gap:2px;height:32px;cursor:pointer;touch-action:manipulation}
+.wave i{flex:1;max-width:4px;min-width:2px;border-radius:2px;background:currentColor;opacity:.32;transition:opacity .12s,background .12s}
+.wave i.p{opacity:1}
+.m:not(.mine) .wave i.p{background:var(--lamp)}
+.vrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-top:3px;opacity:.85}
+.vtime{font-variant-numeric:tabular-nums}
+.vspeed{font-size:11.5px;font-weight:700;padding:0 8px;border-radius:9px;background:rgba(0,0,0,.14);min-height:22px;line-height:22px}
+.m.vmsg .meta{margin-top:0}
+
+/* stickers in the chat: no bubble, just the sticker */
+.m.stkmsg{background:none!important;padding:2px 0;box-shadow:none}
+.m img.stk{width:150px;height:150px;object-fit:contain;border-radius:0;cursor:pointer;filter:drop-shadow(0 4px 10px rgba(0,0,0,.18))}
+.m.stkmsg .meta{align-self:flex-end;width:max-content;margin-inline-start:auto;background:var(--raised);color:var(--muted);padding:1px 8px;border-radius:10px}
+.m.stkmsg.mine .meta{color:var(--muted)}
+.m.stkmsg .trail{color:var(--muted)}.m.stkmsg .trail.s3{color:var(--lamp)}
+.m.stkmsg .q{color:var(--text)}
+
+/* the stickers drawer */
+.stkpanel{background:var(--panel);border-top:1px solid var(--line);height:min(300px,38vh);display:flex;flex-direction:column;animation:drawer .2s ease-out}
+@keyframes drawer{from{transform:translateY(16px);opacity:0}}
+.stk-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px 2px;min-height:44px}
+.stk-head .btn.small{min-height:32px}
+.stk-grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;padding:6px 10px 14px;align-content:start}
+.stk,.stk-add{aspect-ratio:1;border-radius:16px;display:grid;place-items:center;position:relative}
+.stk:hover{background:var(--raised)}
+.stk img{width:90%;height:90%;object-fit:contain;pointer-events:none}
+.stk:active img{transform:scale(.92)}
+.stk-add{border:2px dashed var(--line);color:var(--muted)}
+.stk-add:hover{border-color:var(--lamp);color:var(--lamp)}
+.stk-x{position:absolute;top:2px;inset-inline-end:2px;width:24px;height:24px;border-radius:50%;background:var(--danger);color:#fff;display:grid;place-items:center}
+.stk-x .ic{width:14px;height:14px;stroke-width:2.8}
+.stk.shake{animation:wiggle .35s ease-in-out infinite alternate}
+@keyframes wiggle{from{transform:rotate(-2.5deg)}to{transform:rotate(2.5deg)}}
+.stk-empty{grid-column:1/-1;padding:8px 4px}
+.stk-cv{width:100%;max-width:240px;aspect-ratio:1;display:block;margin:10px auto;border-radius:18px;background:repeating-conic-gradient(var(--raised) 0 25%,transparent 0 50%) 0 0/22px 22px}
+.chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:6px 0 10px}
+.chips button{padding:6px 14px;border-radius:12px;background:var(--raised);font-size:14px;min-height:38px}
+.chips .on{background:var(--lamp);color:var(--lamp-ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){.trail.s0 i,.chev-s::before,.reclock .up,.stk.shake,.stkpanel{animation:none}}
+.bar .icons .plus{color:var(--lamp);background:var(--lamp-soft)}
+.bar .icons .plus:hover{background:var(--lamp);color:var(--lamp-ink)}

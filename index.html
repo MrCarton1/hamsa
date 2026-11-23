@@ -55,21 +55,16 @@
       <h1 class="wordmark">همسة</h1>
       <div class="icons">
         <button id="installBtn" data-ic="install" data-ttl="installApp" hidden></button>
-        <button id="newGroupBtn" data-ic="group" data-ttl="newGroup"></button>
+        <button id="peopleBtn" class="plus" data-ic="userPlus" data-ttl="addFriends"><span id="reqCount" class="dot-pill" hidden></span></button>
         <button id="settingsBtn" class="me" data-ttl="settings"><span id="meAvatar" class="av"></span></button>
       </div>
     </header>
     <div id="pushBar" class="pushbar" hidden><span data-t="pushBar"></span><button id="pushYes" class="btn small primary" data-t="turnOn"></button><button id="pushNo" class="btn small ghost" data-t="later"></button></div>
-    <nav class="seg"><button class="on" data-view="chats"><span data-t="chats"></span> <span id="unreadAll" class="pill" hidden></span></button><button data-view="friends"><span data-t="friends"></span> <span id="reqCount" class="pill" hidden></span></button></nav>
     <div id="chatsView">
       <input id="search" class="search" data-tph="search">
       <ul id="chatList" class="list"></ul>
     </div>
-    <div id="friendsView" hidden>
-      <form id="addFriend" class="add"><input id="addUser" dir="ltr" data-tph="addFriendPh" maxlength="20"><button class="btn primary" data-t="add"></button></form>
-      <p id="addMsg" class="hint"></p>
-      <div id="friendsBox"></div>
-    </div>
+    <span id="unreadAll" hidden></span>
   </aside>
 
   <section id="chat" class="chat">
@@ -83,12 +78,23 @@
       </header>
       <div id="msgs" class="msgs"></div>
       <div id="replyBox" class="replybox" hidden><div><b data-t="replyTo"></b> <span id="replyText"></span></div><button id="replyX">✕</button></div>
+      <div id="stkPanel" class="stkpanel" hidden>
+        <div class="stk-head"><b data-t="stickers"></b><button type="button" id="stkEdit" class="btn small ghost" data-t="editStickers"></button></div>
+        <div id="stkGrid" class="stk-grid"></div>
+      </div>
       <form id="composer" class="composer">
+        <button type="button" id="stkBtn" data-ic="smile" data-ttl="stickers"></button>
+        <textarea id="text" rows="1" data-tph="typeMsg" maxlength="4000"></textarea>
         <button type="button" id="attachBtn" data-ic="attach" data-ttl="photo"></button>
         <input type="file" id="fileIn" accept="image/*" hidden>
-        <textarea id="text" rows="1" data-tph="typeMsg" maxlength="4000"></textarea>
-        <button type="button" id="micBtn" data-ic="mic" data-ttl="voice"></button>
-        <button id="sendBtn" class="send" data-ic="send"></button>
+        <div id="recBar" class="recbar" hidden>
+          <span class="rdot"></span><span id="recTime">0:00</span>
+          <span id="recHint" class="slide"><span class="chev-s"></span><span data-t="slideCancel"></span></span>
+          <button type="button" id="recDel" class="rdel" data-ic="trash" hidden></button>
+        </div>
+        <div id="recLock" class="reclock" hidden><span data-ic="lock"></span><span class="up"></span></div>
+        <button type="button" id="micBtn" class="mic" data-ic="mic" data-ttl="holdToRecord"></button>
+        <button id="sendBtn" class="send" data-ic="send" hidden></button>
       </form>
     </div>
   </section>

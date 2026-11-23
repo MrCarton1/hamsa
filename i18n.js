@@ -26,7 +26,7 @@ self.I18N = {
     sentS: 'Sent', deliveredS: 'Reached their phone', readS: 'Read', readAt: 'Read {t}', readAll: 'Read by everyone', readSome: 'Read by {a} of {b}',
     deliveredAll: 'Reached everyone', notDelivered: 'Not on their phone yet: it may be off or offline', notDeliveredGroup: 'Reached {a} of {b}; the rest are off or offline',
     sentAt: 'Sent {t}', deliveredAt: 'Reached {t}', notYet: 'Not delivered yet',
-    newReq: '📩 New friend request from {n}. Open Friends.', accepted: '✅ {n} accepted your request',
+    newReq: '📩 New friend request from {n}. Tap + at the top.', accepted: '✅ {n} accepted your request',
     imgBig: 'The picture is larger than 10 MB', sendingImg: 'Sending the picture…', sendingVoice: 'Sending the voice message…', notSent: 'Not sent: {e}',
     recording: 'Recording… tap ⏹ to send', allowMic: 'Allow the microphone for this site',
     encrypted: 'Encrypted', oldMsg: 'Sent before encryption', cantOpen: '🔒 Encrypted for another device', needsUpdate: '{n} needs to open the latest Hamsa before you can write to them',
@@ -44,7 +44,14 @@ self.I18N = {
     e2e: 'End-to-end encryption', e2eNote: 'Messages, photos and voice notes are encrypted on your phone. Only the people in the chat can open them, not even the people who run Hamsa.',
     thisDevice: 'This device', newNotif: 'Message notifications', notifNote: 'Get new messages even when Hamsa is closed.', installApp: 'Install as an app',
     theme: 'Theme', dark: 'Dark', light: 'Light', auto: 'Same as my phone', version: 'Version {v}', checkUpdate: 'Check for updates', upToDate: 'You have the latest version',
-    aboutText: 'Hamsa is a private messenger for family and friends.', back: 'Back'
+    aboutText: 'Hamsa is a private messenger for family and friends.', back: 'Back',
+    noChats: 'No chats yet. Tap + at the top to add a friend.', friendsTitle: 'Friends', addFriends: 'Add a friend', newChat: 'New chat',
+    sticker: '🙂 Sticker', stickers: 'Stickers', makeSticker: 'Make a sticker', stickerHow: 'Pick a photo. Only you will have this sticker, unless you send it to someone and they save it.',
+    stickerText: 'Words on the sticker (optional)', stickerShape: 'Shape', shapeRound: 'Rounded', shapeCircle: 'Circle', shapeFull: 'Whole photo',
+    choosePhoto: 'Choose a photo', saveSticker: 'Save to my stickers', stickerSaved: 'Added to your stickers ✅', alreadySaved: 'Already in your stickers',
+    noStickers: 'No stickers yet. Tap + to make your first one.', delSticker: 'Remove this sticker from your stickers?', editStickers: 'Edit', done: 'Done', stickerFull: 'You have the most stickers allowed (300)',
+    holdToRecord: 'Hold the mic to record, let go to send', slideCancel: 'Slide to cancel', voiceCancelled: 'Recording cancelled',
+    sending: 'Sending…', notSentTap: 'Not sent · tap to try again'
   },
   ar: {
     dir: 'rtl', langName: 'العربية',
@@ -72,7 +79,7 @@ self.I18N = {
     sentS: 'انرسلت', deliveredS: 'وصلت لجواله', readS: 'قراها', readAt: 'قراها {t}', readAll: 'قراها الكل', readSome: 'قراها {a} من {b}',
     deliveredAll: 'وصلت للكل', notDelivered: 'ما وصلت لجواله للحين، يمكن جواله مقفل أو بدون نت', notDeliveredGroup: 'وصلت لـ {a} من {b}، الباقين جوالاتهم مقفلة أو بدون نت',
     sentAt: 'انرسلت {t}', deliveredAt: 'وصلت {t}', notYet: 'ما وصلت للحين',
-    newReq: '📩 طلب صداقة جديد من {n}، شوفه في «الأصدقاء»', accepted: '✅ {n} قبل طلب صداقتك',
+    newReq: '📩 طلب صداقة جديد من {n}، اضغط + فوق عشان تشوفه', accepted: '✅ {n} قبل طلب صداقتك',
     imgBig: 'الصورة أكبر من 10 ميجا', sendingImg: 'جاري إرسال الصورة…', sendingVoice: 'جاري إرسال الرسالة الصوتية…', notSent: 'ما انرسلت: {e}',
     recording: 'يسجل الحين… اضغط ⏹ للإرسال', allowMic: 'اسمح للمتصفح يستخدم المايك',
     encrypted: 'مشفرة', oldMsg: 'قبل التشفير', cantOpen: '🔒 رسالة مشفرة لجهاز ثاني', needsUpdate: '{n} لازم يفتح آخر نسخة من همسة قبل ما تقدر تراسله',
@@ -90,7 +97,14 @@ self.I18N = {
     e2e: 'تشفير من طرف لطرف', e2eNote: 'الرسائل والصور والصوتيات تتشفر في جوالك. ما يفتحها إلا اللي في المحادثة، حتى أصحاب همسة ما يقدرون يقرونها.',
     thisDevice: 'هالجهاز', newNotif: 'إشعارات الرسائل', notifNote: 'توصلك الرسائل حتى وهمسة مقفلة.', installApp: 'ثبّتها كتطبيق',
     theme: 'الثيم', dark: 'داكن', light: 'فاتح', auto: 'مثل جوالي', version: 'الإصدار {v}', checkUpdate: 'دوّر على تحديث', upToDate: 'عندك آخر نسخة',
-    aboutText: 'همسة تطبيق تواصل خاص للأهل والأصحاب.', back: 'رجوع'
+    aboutText: 'همسة تطبيق تواصل خاص للأهل والأصحاب.', back: 'رجوع',
+    noChats: 'ما عندك محادثات للحين. اضغط + فوق وأضف صديق.', friendsTitle: 'الأصدقاء', addFriends: 'إضافة صديق', newChat: 'محادثة جديدة',
+    sticker: '🙂 ملصق', stickers: 'الملصقات', makeSticker: 'سوّ ملصق', stickerHow: 'اختر صورة. الملصق يكون عندك أنت بس، إلا إذا أرسلته لأحد وحفظه عنده.',
+    stickerText: 'كلام على الملصق (اختياري)', stickerShape: 'الشكل', shapeRound: 'مربع ناعم', shapeCircle: 'دائرة', shapeFull: 'الصورة كاملة',
+    choosePhoto: 'اختر صورة', saveSticker: 'احفظه في ملصقاتي', stickerSaved: 'انضاف لملصقاتك ✅', alreadySaved: 'موجود في ملصقاتك من قبل',
+    noStickers: 'ما عندك ملصقات للحين. اضغط + وسوّ أول ملصق.', delSticker: 'تشيل هذا الملصق من ملصقاتك؟', editStickers: 'تعديل', done: 'تم', stickerFull: 'وصلت الحد الأعلى للملصقات (300)',
+    holdToRecord: 'اضغط على المايك وخلك ضاغط عشان تسجل، وارفع إصبعك عشان ترسل', slideCancel: 'اسحب للإلغاء', voiceCancelled: 'انلغى التسجيل',
+    sending: 'جاري الإرسال…', notSentTap: 'ما انرسلت · اضغط عشان تعيد'
   },
   nl: {
     dir: 'ltr', langName: 'Nederlands',
@@ -118,7 +132,7 @@ self.I18N = {
     sentS: 'Verzonden', deliveredS: 'Op hun telefoon', readS: 'Gelezen', readAt: 'Gelezen {t}', readAll: 'Door iedereen gelezen', readSome: 'Gelezen door {a} van {b}',
     deliveredAll: 'Bij iedereen aangekomen', notDelivered: 'Nog niet op hun telefoon: misschien uit of offline', notDeliveredGroup: 'Bij {a} van {b} aangekomen; de rest is uit of offline',
     sentAt: 'Verzonden {t}', deliveredAt: 'Aangekomen {t}', notYet: 'Nog niet aangekomen',
-    newReq: '📩 Nieuw vriendschapsverzoek van {n}. Open Vrienden.', accepted: '✅ {n} heeft je verzoek geaccepteerd',
+    newReq: '📩 Nieuw vriendschapsverzoek van {n}. Tik bovenaan op +.', accepted: '✅ {n} heeft je verzoek geaccepteerd',
     imgBig: 'De foto is groter dan 10 MB', sendingImg: 'Foto wordt verstuurd…', sendingVoice: 'Spraakbericht wordt verstuurd…', notSent: 'Niet verzonden: {e}',
     recording: 'Opnemen… tik op ⏹ om te versturen', allowMic: 'Sta de microfoon toe voor deze site',
     encrypted: 'Versleuteld', oldMsg: 'Van vóór de versleuteling', cantOpen: '🔒 Versleuteld voor een ander apparaat', needsUpdate: '{n} moet eerst de nieuwste Hamsa openen voordat je kunt schrijven',
@@ -136,6 +150,13 @@ self.I18N = {
     e2e: 'End-to-end versleuteling', e2eNote: 'Berichten, foto’s en spraakberichten worden op je telefoon versleuteld. Alleen de mensen in de chat kunnen ze openen, zelfs de makers van Hamsa niet.',
     thisDevice: 'Dit apparaat', newNotif: 'Berichtmeldingen', notifNote: 'Ontvang nieuwe berichten, ook als Hamsa dicht is.', installApp: 'Installeren als app',
     theme: 'Thema', dark: 'Donker', light: 'Licht', auto: 'Zoals mijn telefoon', version: 'Versie {v}', checkUpdate: 'Zoek naar updates', upToDate: 'Je hebt de nieuwste versie',
-    aboutText: 'Hamsa is een privé-messenger voor familie en vrienden.', back: 'Terug'
+    aboutText: 'Hamsa is een privé-messenger voor familie en vrienden.', back: 'Terug',
+    noChats: 'Nog geen chats. Tik bovenaan op + om een vriend toe te voegen.', friendsTitle: 'Vrienden', addFriends: 'Vriend toevoegen', newChat: 'Nieuwe chat',
+    sticker: '🙂 Sticker', stickers: 'Stickers', makeSticker: 'Maak een sticker', stickerHow: 'Kies een foto. Alleen jij hebt deze sticker, tenzij je hem naar iemand stuurt en die hem bewaart.',
+    stickerText: 'Tekst op de sticker (optioneel)', stickerShape: 'Vorm', shapeRound: 'Afgerond', shapeCircle: 'Cirkel', shapeFull: 'Hele foto',
+    choosePhoto: 'Kies een foto', saveSticker: 'Bewaar bij mijn stickers', stickerSaved: 'Toegevoegd aan je stickers ✅', alreadySaved: 'Staat al bij je stickers',
+    noStickers: 'Nog geen stickers. Tik op + om je eerste te maken.', delSticker: 'Deze sticker uit je stickers halen?', editStickers: 'Bewerken', done: 'Klaar', stickerFull: 'Je hebt het maximum aantal stickers (300)',
+    holdToRecord: 'Houd de microfoon ingedrukt om op te nemen, laat los om te sturen', slideCancel: 'Schuif om te annuleren', voiceCancelled: 'Opname geannuleerd',
+    sending: 'Versturen…', notSentTap: 'Niet verstuurd · tik om opnieuw te proberen'
   }
 };
