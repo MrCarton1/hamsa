@@ -10,13 +10,15 @@ const fmtTime = d => new Date(d).toLocaleTimeString('ar', { hour: 'numeric', min
 const fmtDay = d => { const x = new Date(d), t = new Date(); const y = new Date(t); y.setDate(t.getDate() - 1);
   return x.toDateString() === t.toDateString() ? 'اليوم' : x.toDateString() === y.toDateString() ? 'أمس' : x.toLocaleDateString('ar', { day: 'numeric', month: 'long', year: 'numeric' }); };
 const short = d => { const x = new Date(d); return x.toDateString() === new Date().toDateString() ? fmtTime(d) : x.toLocaleDateString('ar', { day: 'numeric', month: 'numeric' }); };
-const errText = e => { const m = (e && (e.message || e.error_description)) || String(e);
+// our own Arabic messages pass through; every other error becomes a generic message (the details go to the console only)
+const uiErr = t => Object.assign(new Error(t), { ui: true });
+const errText = e => { if (e && e.ui) return e.message; const m = (e && (e.message || e.error_description)) || String(e); console.error(e);
   if (/Invalid login/i.test(m)) return 'اسم المستخدم أو كلمة السر غلط';
   if (/already registered|already exists|duplicate|Database error saving/i.test(m)) return 'اسم المستخدم هذا مأخوذ، اختر غيره';
-  if (/Password should be/i.test(m)) return 'كلمة السر لازم تكون 6 حروف أو أكثر';
+  if (/Password should be/i.test(m)) return 'كلمة السر لازم تكون 8 حروف أو أكثر';
   if (/rate limit/i.test(m)) return 'محاولات كثيرة، انتظر شوي وجرب';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'ما فيه اتصال بالإنترنت';
-  return m; };
+  return 'صار خطأ، جرب مرة ثانية'; };
 
 let me = null, nicks = new Map(), myPres = { visible: true, receipts: true }, profiles = new Map(), convs = [], members = new Map(), current = null, replyTo = null, msgsById = new Map(), urlCache = new Map();
 
@@ -35,7 +37,9 @@ $('#authForm').onsubmit = async e => {
   const email = `${u}@${HAMSA.emailDomain}`; btn.disabled = true; msg.textContent = '';
   try {
     if (mode === 'up') {
-      if (!name) throw new Error('اكتب اسمك');
+      if (!name) throw uiErr('اكتب اسمك');
+      if (name.length > 40) throw uiErr('الاسم أطول من 40 حرف');
+      if (p.length < 8) throw uiErr('كلمة السر لازم تكون 8 حروف أو أكثر');
       const { error } = await sb.auth.signUp({ email, password: p, options: { data: { username: u, display_name: name } } }); if (error) throw error;
       const s = await sb.auth.getSession(); if (!s.data.session) { const r = await sb.auth.signInWithPassword({ email, password: p }); if (r.error) throw r.error; }
     } else { const { error } = await sb.auth.signInWithPassword({ email, password: p }); if (error) throw error; }
@@ -125,7 +129,7 @@ $('#addFriend').onsubmit = async e => {
   e.preventDefault(); const u = $('#addUser').value.trim().toLowerCase().replace(/^@/, ''), msg = $('#addMsg'); msg.textContent = '';
   if (!u) return; if (u === me.username) return msg.textContent = 'هذا أنت 🙂';
   const { data: p } = await sb.from('profiles').select('*').eq('username', u).maybeSingle();
-  if (!p) return msg.textContent = 'ما فيه أحد بهذا الاسم';
+  if (!p) return msg.textContent = 'ما قدرنا نضيف هذا الحساب، تأكد من اسم المستخدم';
   profiles.set(p.id, p);
   const ex = friends.find(f => (f.requester === p.id && f.addressee === me.id) || (f.requester === me.id && f.addressee === p.id));
   if (ex && ex.status === 'accepted') return msg.textContent = 'هو صديقك من قبل';
@@ -203,7 +207,8 @@ function addMsg(m) {
   box.appendChild(el); loadMedia(el); if (!addMsg.bulk) note();
 }
 function updateMsg(m) { msgsById.set(m.id, m); const el = document.querySelector(`.m[data-id="${m.id}"]`); if (!el) return; el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : ''); el.innerHTML = msgHtml(m); loadMedia(el); }
-async function signed(path) { if (urlCache.has(path)) return urlCache.get(path); const { data } = await sb.storage.from('media').createSignedUrl(path, 3600); const u = data && data.signedUrl; if (u) urlCache.set(path, u); return u; }
+// signed links live 5 minutes only (a screenshot or a copied link stops working soon); a new one is made when it expires
+async function signed(path) { const hit = urlCache.get(path); if (hit && Date.now() - hit.t < 240000) return hit.u; const { data } = await sb.storage.from('media').createSignedUrl(path, 300); const u = data && data.signedUrl; if (u) urlCache.set(path, { u, t: Date.now() }); return u; }
 function loadMedia(el) { el.querySelectorAll('[data-media]').forEach(async x => { const u = await signed(x.dataset.media); if (u) { x.src = u; if (x.tagName === 'IMG') x.onload = () => { const b = $('#msgs'); if (b.scrollHeight - b.scrollTop - b.clientHeight < 400) scrollDown(); }; } }); }
 
 $('#msgs').onclick = async e => {
@@ -240,11 +245,12 @@ async function upload(blob, ext, type) {
 }
 $('#attachBtn').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f || !current) return;
+  // only PNG, JPEG and WebP: they are redrawn on a canvas below (this drops EXIF location data and blocks SVG / HTML files)
+  if (!/image\/(png|jpeg|webp)/.test(f.type)) return toast('الصور المدعومة: PNG أو JPEG أو WebP');
   if (f.size > 10 * 1024 * 1024) return toast('الصورة أكبر من 10 ميجا');
   toast('جاري إرسال الصورة…');
   try { const img = await shrink(f), path = await upload(img.blob, img.ext, img.type); await send({ kind: 'image', media_path: path }); } catch (x) { toast('ما انرسلت الصورة: ' + errText(x)); } };
-async function shrink(f) {   // big photos are resized to save the free storage
-  if (!/image\/(png|jpeg|webp)/.test(f.type)) return { blob: f, ext: (f.type.split('/')[1] || 'png'), type: f.type };
+async function shrink(f) {   // every photo is redrawn as a new JPEG: smaller file, and no hidden metadata
   const bmp = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
   c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);   // transparent PNG parts would turn black in JPEG without this
@@ -263,7 +269,9 @@ $('#micBtn').onclick = async () => {
     rec.onstop = async () => { stream.getTracks().forEach(t => t.stop()); $('#micBtn').classList.remove('rec'); $('#micBtn').textContent = '🎤'; const r = rec; rec = null;
       if (Date.now() - started < 800 || !current || current.id !== conv) return;
       const base = (r.mimeType || 'audio/webm').split(';')[0], ext = base.includes('mp4') ? 'm4a' : base.includes('ogg') ? 'ogg' : 'webm';
-      try { toast('جاري إرسال الرسالة الصوتية…'); const path = await upload(new Blob(chunks, { type: base }), ext, base); await send({ kind: 'voice', media_path: path }); } catch (x) { toast('ما انرسلت: ' + errText(x)); } };
+      try { toast('جاري إرسال الرسالة الصوتية…'); const blob = new Blob(chunks, { type: base });
+        if (blob.size > 10 * 1024 * 1024) throw uiErr('الرسالة الصوتية أطول من اللازم');
+        const path = await upload(blob, ext, base); await send({ kind: 'voice', media_path: path }); } catch (x) { toast('ما انرسلت: ' + errText(x)); } };
     rec.start(); $('#micBtn').classList.add('rec'); $('#micBtn').textContent = '⏹'; toast('يسجل الحين… اضغط ⏹ للإرسال');
   } catch { toast('اسمح للمتصفح يستخدم المايك'); }
 };
@@ -312,10 +320,10 @@ async function resync() {
 // the database itself stops your friends from reading it (rule presence_read in setup.sql).
 async function presence(row) { if (!me) return; await sb.from('presence').upsert(row, { onConflict: 'user_id' }); }
 // times come from the server's clock: a phone whose clock is a bit wrong would otherwise break "online"
-const viewing = on => me ? sb.rpc('touch_presence', { c: on && current ? current.id : null, on_line: true }).then(() => {}) : null;
+const viewing = on => me && myPres.visible ? sb.rpc('touch_presence', { c: on && current ? current.id : null, on_line: true }).then(() => {}) : null;
 // leaving the app: "offline" at once. keepalive lets the request finish even while the phone closes the app.
 function goOffline() {
-  if (!me || !accessToken) return;
+  if (!me || !accessToken || !myPres.visible) return;
   try { fetch(HAMSA.url + '/rest/v1/rpc/touch_presence', { method: 'POST', keepalive: true, headers: { apikey: HAMSA.key, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ c: null, on_line: false }) }).catch(() => {}); } catch {}
 }
 let skew = 0;   // server time minus phone time
@@ -380,16 +388,27 @@ $('#settingsBtn').onclick = () => {
 <div class="sec">المظهر</div>
 <label class="chk"><input type="radio" name="sTheme" value="dark" ${dark ? 'checked' : ''}> داكن</label><label class="chk"><input type="radio" name="sTheme" value="light" ${dark ? '' : 'checked'}> فاتح</label>
 <div class="sec">كلمة السر</div>
-<input id="sPass" type="password" dir="ltr" minlength="6" placeholder="كلمة سر جديدة (اتركها فاضية إذا ما تبي تغيرها)" autocomplete="new-password">
+<input id="sPass" type="password" dir="ltr" placeholder="كلمة سر جديدة (8 حروف أو أكثر، واتركها فاضية إذا ما تبي تغيرها)" autocomplete="new-password">
+<label id="sOldWrap" hidden>كلمة السر الحالية (مطلوبة للتغيير)<input id="sOld" type="password" dir="ltr" autocomplete="current-password"></label>
 </div><div class="row"><button value="logout" class="btn danger">تسجيل الخروج</button><button value="x" class="btn">إلغاء</button><button value="ok" class="btn primary">حفظ</button></div>`, async () => {
     const name = $('#sName').value.trim(), vis = $('#sVis').checked, rec = $('#sRec').checked, theme = document.querySelector('input[name=sTheme]:checked').value, pass = $('#sPass').value, wantNotif = $('#sNotif').checked;
+    if (name.length > 40) return toast('الاسم أطول من 40 حرف');
     setTheme(theme);
     if (name && name !== me.display_name) { const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id); if (error) return toast(errText(error)); me.display_name = name; profiles.set(me.id, me); $('#meName').textContent = name; avatar($('#meAvatar'), name, me.id); }
-    if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTrail(current.id); } }
-    if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
+    if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (!vis) sb.rpc('touch_presence', { c: null, on_line: false }).then(() => {}); if (current) { updateStatus(); refreshTrail(current.id); } }
+    if (pass) {
+      if (pass.length < 8) return toast('كلمة السر لازم 8 حروف أو أكثر');
+      const old = $('#sOld').value;
+      if (!old) return toast('اكتب كلمة السر الحالية عشان تغيّرها');
+      const { error: e1 } = await sb.auth.signInWithPassword({ email: `${me.username}@${HAMSA.emailDomain}`, password: old });   // re-checks the old password first
+      if (e1) return toast('كلمة السر الحالية غلط');
+      const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error));
+      await sb.auth.signOut({ scope: 'others' });   // logs out every other device that still has the old session
+    }
     if (wantNotif && !notif) await enablePush();
     if (!wantNotif && notif) await turnOff();
     toast('تم حفظ الإعدادات ✅'); });
+  $('#sPass').oninput = () => { $('#sOldWrap').hidden = !$('#sPass').value; };
   const d = $('#dlg'), prev = d.onclose; d.onclose = () => d.returnValue === 'logout' ? logout() : prev();
 };
 const liveCh = () => sb.getChannels().find(x => x.topic.endsWith('hamsa-live'));
