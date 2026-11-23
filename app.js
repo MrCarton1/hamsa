@@ -373,7 +373,7 @@ $('#settingsBtn').onclick = () => {
     if (vis !== myPres.visible || rec !== myPres.receipts) { myPres = { visible: vis, receipts: rec }; await presence({ visible: vis, receipts: rec }); if (current) { updateStatus(); refreshTicks(current.id); } }
     if (pass) { if (pass.length < 6) return toast('كلمة السر لازم 6 حروف أو أكثر'); const { error } = await sb.auth.updateUser({ password: pass }); if (error) return toast(errText(error)); }
     if (wantNotif && !notif) await enablePush();
-    if (!wantNotif && notif) { try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {} toast('وقفت الإشعارات على هالجوال'); }
+    if (!wantNotif && notif) { try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {} bell(); toast('وقفت الإشعارات على هالجوال'); }
     toast('تم حفظ الإعدادات ✅'); });
   const d = $('#dlg'), prev = d.onclose; d.onclose = () => d.returnValue === 'logout' ? logout() : prev();
 };
@@ -401,9 +401,19 @@ const iosHelp = () => dialog(`<h3>ثبّت همسة على جوالك</h3><ol cl
 $('#installBtn').onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#installBtn').hidden = true; } else if (isIOS) iosHelp(); };
 
 const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
+const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+// asks the browser for permission. Call it straight from a tap (no await before it), or the browser blocks the popup.
+function askPermission() {
+  return new Promise(resolve => {
+    let done = false; const fin = p => { if (!done) { done = true; resolve(p); } };
+    try { const r = Notification.requestPermission(fin); if (r && typeof r.then === 'function') r.then(fin, () => fin('denied')); }
+    catch { fin('denied'); }
+  });
+}
 async function subscribe(quiet) {
-  const reg = await navigator.serviceWorker.ready;
-  const { publicKey } = await fetch(HAMSA.url + '/functions/v1/push', { headers: { apikey: HAMSA.key } }).then(r => r.json());
+  const reg = await withTimeout(navigator.serviceWorker.ready, 8000, 'التطبيق ما جهز بعد، سكّره وافتحه من جديد وجرب');
+  const { publicKey } = await fetch(HAMSA.url + '/functions/v1/push', { headers: { apikey: HAMSA.key } }).then(r => r.json()).catch(() => ({}));
+  if (!publicKey) throw new Error('ما وصل مفتاح الإشعارات من الخادم، جرب بعد شوي');
   let sub = await reg.pushManager.getSubscription();
   for (let i = 0; i < 2; i++) {
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(publicKey) });
@@ -416,19 +426,32 @@ async function subscribe(quiet) {
   bell(); if (!quiet) toast('تم تفعيل الإشعارات ✅ بتوصلك الرسائل حتى والتطبيق مقفل');
 }
 async function enablePush() {
-  if (!pushOK()) return isIOS && !installed() ? iosHelp() : toast('هالمتصفح ما يدعم الإشعارات');
-  const p = await Notification.requestPermission();
-  if (p !== 'granted') { bell(); return toast('الإشعارات مقفلة. فعّلها من إعدادات المتصفح لهالموقع'); }
+  if (!pushOK()) return isIOS && !installed() ? iosHelp() : toast(isIOS ? 'ثبّت همسة على الشاشة الرئيسية عشان تفعّل الإشعارات' : 'هالمتصفح ما يدعم الإشعارات');
+  const p = await askPermission();   // this line runs right away from the tap
+  bell();
+  if (p !== 'granted') return toast(p === 'denied' ? 'الإشعارات مقفلة من المتصفح. افتح إعدادات الموقع لهمسة وفعّل الإشعارات، وبعدين ارجع جرب' : 'ما وافقت على الإشعارات، تقدر تجرب مرة ثانية');
   try { await subscribe(false); } catch (x) { toast('ما قدرت أفعّل الإشعارات: ' + errText(x)); }
   $('#pushBar').hidden = true;
 }
-function bell() { const on = pushOK() && Notification.permission === 'granted'; $('#bellBtn').textContent = on ? '🔔' : '🔕'; $('#bellBtn').title = on ? 'الإشعارات شغالة' : 'فعّل الإشعارات'; }
-$('#bellBtn').onclick = () => Notification.permission === 'granted' ? subscribe(false).catch(x => toast(errText(x))) : enablePush();
+// the bell shows the real state: on / blocked / needs install (iPhone) / not supported
+function bell() {
+  const ok = pushOK(), perm = ok ? Notification.permission : 'unsupported', on = perm === 'granted';
+  let tip = 'فعّل الإشعارات';
+  if (on) tip = 'الإشعارات شغالة';
+  else if (perm === 'denied') tip = 'الإشعارات مقفلة من المتصفح';
+  else if (!ok) tip = isIOS && !installed() ? 'ثبّت همسة على الشاشة الرئيسية عشان تفعّل الإشعارات' : 'المتصفح ما يدعم الإشعارات';
+  $('#bellBtn').textContent = on ? '🔔' : '🔕'; $('#bellBtn').title = tip;
+}
+$('#bellBtn').onclick = () => {
+  if (pushOK() && Notification.permission === 'granted') return subscribe(false).catch(x => toast('ما قدرت أفعّل الإشعارات: ' + errText(x)));
+  enablePush();
+};
 $('#pushYes').onclick = enablePush;
 $('#pushNo').onclick = () => { $('#pushBar').hidden = true; try { localStorage.setItem('hamsa-push-later', Date.now()); } catch {} };
 function pushStart() {
-  bell(); if (!pushOK()) { if (isIOS && !installed()) $('#pushBar').hidden = true; return; }
+  bell();
+  if (!pushOK()) { $('#pushBar').hidden = true; return; }   // not supported (or iPhone not installed yet): no bar
   if (Notification.permission === 'granted') return subscribe(true).catch(() => {});
   let later = 0; try { later = +localStorage.getItem('hamsa-push-later') || 0; } catch {}
-  $('#pushBar').hidden = Notification.permission === 'denied' || Date.now() - later < 3 * 864e5;
+  $('#pushBar').hidden = Notification.permission !== 'default' || Date.now() - later < 3 * 864e5;
 }
