@@ -538,3 +538,14 @@ dialog.sheet{margin:auto auto 0;width:min(520px,100%);max-width:100%;border-radi
 .diag-bad{background:rgba(255,122,133,.12);color:var(--text);padding:14px;border-radius:16px;line-height:1.6;margin:0 0 12px}
 .diag-good{background:rgba(47,179,106,.14);padding:14px;border-radius:16px;font-weight:600;margin:0 0 12px}
 .st-body .steps{line-height:1.7;padding-inline-start:22px;margin:6px 0 14px}.st-body .steps li{margin-bottom:6px}
+
+/* messages: hold for the menu, swipe to reply / see who read it */
+@media (hover:none){.m .tools{display:none!important}}
+.m{-webkit-touch-callout:none;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+@media (hover:none){.m{-webkit-user-select:none;user-select:none}}
+.m.held{filter:brightness(1.15);transform:scale(.98)}
+.m.sw-reply,.m.sw-info{filter:brightness(1.12)}
+.sheet-prev{padding:8px 16px 12px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--line);margin-bottom:6px;white-space:pre-wrap;max-height:4.5em;overflow:hidden}
+.mi-prev{display:grid;justify-items:center;gap:6px;padding:10px 0 18px}
+.mi-bubble{background:var(--lamp);color:var(--lamp-ink);padding:10px 14px;border-radius:18px;max-width:85%;white-space:pre-wrap;word-break:break-word}
+.mi-prev small{color:var(--muted)}.mi-sec{display:flex;align-items:center;gap:8px}

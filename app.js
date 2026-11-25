@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.4.3';
+const VERSION = '3.5.0';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -430,8 +430,7 @@ function memberMenu(c, uid) {
     else return;
     if (r && r.error) gErr(r.error); return refreshGroup(c);
   });
-  $('#dlg').classList.add('sheet'); const d = $('#dlg'), off = () => { d.classList.remove('sheet'); d.onclick = null; d.removeEventListener('close', off); }; d.addEventListener('close', off);
-  d.onclick = e => { if (e.target === d) d.close(''); };
+  sheetize();
 }
 
 // ---------- a chat ----------
@@ -516,18 +515,23 @@ $('#msgs').onclick = async e => {
   if (vs) { vSpeed = vSpeed === 1 ? 1.5 : vSpeed === 1.5 ? 2 : 1; try { localStorage.setItem('hamsa-vspeed', vSpeed); } catch {} player.playbackRate = vSpeed; $$('[data-vspeed]').forEach(x => x.textContent = vSpeed + '×'); return; }
   if (vw && m) { const b = vw.getBoundingClientRect(), rtl = document.documentElement.dir === 'rtl', f = Math.max(0, Math.min(1, rtl ? (b.right - e.clientX) / b.width : (e.clientX - b.left) / b.width));
     if (playing === m.id) { const d = voiceDur(m); if (d) player.currentTime = f * d; paintPlayer(); } else playVoice(m.id, f); return; }
-  $$('.m.show').forEach(x => x !== el && x.classList.remove('show')); el.classList.toggle('show');
+  if (Date.now() - holdAt < 700) return;   // the finger was holding or swiping, not tapping
+  if (!touchUI) { $$('.m.show').forEach(x => x !== el && x.classList.remove('show')); el.classList.toggle('show'); }
   const jump = e.target.closest('[data-jump]'); if (jump) { const x = $(`.m[data-id="${jump.dataset.jump}"]`); if (x) { x.scrollIntoView({ block: 'center', behavior: 'smooth' }); x.classList.add('flash'); setTimeout(() => x.classList.remove('flash'), 1500); } return; }
   if (e.target.tagName === 'IMG' && e.target.src && !e.target.classList.contains('stk')) { const v = document.createElement('div'); v.className = 'viewer'; const im = document.createElement('img'); im.src = e.target.src; v.appendChild(im); v.onclick = () => v.remove(); document.body.appendChild(v); return; }
-  const act = e.target.closest('[data-act]'); if (!act || !m) return; const a = act.dataset.act, text = r ? r.text : (m.body || '');
+  const act = e.target.closest('[data-act]'); if (!act || !m) return; return msgAct(act.dataset.act, m, el);
+};
+async function msgAct(a, m, el) {
+  const r = plain.get(m.id + ':' + m.iv), text = r ? r.text : (m.body || '');
+  if (a === 'info') return openSettings('minfo:' + m.id);
   if (a === 'reply') { replyTo = m; $('#replyText').textContent = (m.sender_id === me.id ? t('you') : nameOf(m.sender_id)) + ': ' + preview(m, r); $('#replyBox').hidden = false; $('#text').focus(); }
   if (a === 'copy') { try { await navigator.clipboard.writeText(text); toast(t('copied')); } catch {} }
   if (a === 'edit') { const n = prompt(t('editTitle'), text); if (n == null || !n.trim() || n === text) return; await editMsg(m, n.trim()); }
-  if (a === 'keep') { el.classList.remove('show'); const { error } = await sb.rpc('keep_message', { mid: m.id, keep: !m.kept }); if (error) return toast(errText(error)); return toast(t(m.kept ? 'unkeptMsg' : 'keptMsg')); }
-  if (a === 'savestk' || a === 'mkstk') { const bl = blobCache.get(m.media_path); if (!bl) return toast(t('cantOpen')); el.classList.remove('show');
+  if (a === 'keep') { el && el.classList.remove('show'); const { error } = await sb.rpc('keep_message', { mid: m.id, keep: !m.kept }); if (error) return toast(errText(error)); return toast(t(m.kept ? 'unkeptMsg' : 'keptMsg')); }
+  if (a === 'savestk' || a === 'mkstk') { const bl = blobCache.get(m.media_path); if (!bl) return toast(t('cantOpen')); el && el.classList.remove('show');
     return a === 'savestk' ? addSticker(bl, (r && r.payload && r.payload.sh)).catch(x => toast(errText(x))) : stickerMaker(bl); }
   if (a === 'del') { if (!confirm(t('delSure'))) return; const { error } = await sb.from('messages').update({ deleted: true }).eq('id', m.id); if (error) toast(errText(error)); }
-};
+}
 $('#replyX').onclick = () => { replyTo = null; $('#replyBox').hidden = true; };
 
 // ---------- sending (everything is encrypted before it leaves the phone) ----------
@@ -789,6 +793,7 @@ async function inbox() {
   sb.channel('user:' + me.id, { config: { private: true } })
     .on('broadcast', { event: 'msg' }, ({ payload }) => onNewMsg(payload))
     .on('broadcast', { event: 'conv' }, () => convChanged())
+    .on('broadcast', { event: 'rcpt' }, ({ payload }) => onReceipt(payload))
     .on('broadcast', { event: 'call' }, ({ payload }) => payload && payload.row && onCallRow(payload.row, payload.ev))
     .subscribe();
 }
@@ -835,7 +840,7 @@ async function resync() {
   const ch = liveCh(), force = forceLive; forceLive = false; if (force || !ch || ch.state !== 'joined') await live();
   const ib = inboxCh(); if (force || !ib || ib.state !== 'joined') await inbox();
   if (current && (!typingCh || typingCh.state !== 'joined')) joinTyping(current.id);
-  await Promise.all([loadChats(), loadFriends()]); delivered(); loadStatuses(); if (!call) checkRinging();
+  await Promise.all([loadChats(), loadFriends()]); if (current) refreshTrail(current.id); delivered(); loadStatuses(); if (!call) checkRinging();
   if (current) { const lastId = Math.max(0, ...[...msgsById.keys()].filter(k => k > 0));
     const { data } = await sb.from('messages').select('*').eq('conversation_id', current.id).gt('id', lastId).order('id');
     for (const m of data || []) { await reveal(m); if (!known(m)) addMsg(m); } if (data && data.length) { scrollDown(); markRead(); } }
@@ -963,6 +968,7 @@ async function renderSettings(page) {
   if (page === 'statusdur') b.innerHTML = `<p class="st-note">${t('statusDurNote')}</p><div class="st-group">${SHOURS.map(([v, k]) => radio('sdur', v, t(k), prefs.status_hours === v)).join('')}</div>`;
   if (page.startsWith('user:')) renderProfile(b, page.slice(5));
   if (page === 'pushdiag') renderPushDiag(b);
+  if (page.startsWith('minfo:')) renderMsgInfo(b, page.slice(6));
   if (groupPage(page)) renderGroup(b, page.slice(page.indexOf(':') + 1), page.slice(0, page.indexOf(':')));
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
 }
@@ -1196,3 +1202,65 @@ $('#stBody').addEventListener('click', async e => {
   const end = () => { if (!el) return; const t0 = el; el = null; t0.style.transition = ''; t0.style.removeProperty('transform'); if (drag && dx < -Math.min(110, innerWidth * .28)) history.back(); drag = false; };
   addEventListener('touchend', end, { passive: true }); addEventListener('touchcancel', end, { passive: true });
 })();
+
+// ---------- messages like WhatsApp: hold for the menu, swipe to reply, swipe the other way for "who read it" ----------
+const MI = {
+  ar: { title: 'معلومات الرسالة', read: 'قرأها', got: 'وصلت له', wait: 'ما وصلت للحين', info: 'معلومات (مين قرأها)', none: 'ما أحد', noRcpt: 'إيصالات القراءة مطفية عندك. شغّلها من الإعدادات ← الخصوصية عشان تشوف مين قرأ رسايلك.', gone: 'الرسالة ما عادت موجودة' },
+  en: { title: 'Message info', read: 'Read by', got: 'Delivered to', wait: 'Not delivered yet', info: 'Info (who read it)', none: 'Nobody', noRcpt: 'Your read receipts are off. Turn them on in Settings → Privacy to see who read your messages.', gone: 'This message is no longer here' },
+  nl: { title: 'Berichtinfo', read: 'Gelezen door', got: 'Afgeleverd bij', wait: 'Nog niet afgeleverd', info: 'Info (wie las het)', none: 'Niemand', noRcpt: 'Je leesbevestigingen staan uit. Zet ze aan bij Instellingen → Privacy om te zien wie je berichten las.', gone: 'Dit bericht is er niet meer' }
+};
+const mi = k => (MI[lang] || MI.en)[k] ?? MI.en[k];
+const touchUI = matchMedia('(hover: none)').matches;
+let holdAt = 0;
+function sheetize() { const d = $('#dlg'); d.classList.add('sheet'); const off = () => { d.classList.remove('sheet'); d.onclick = null; d.removeEventListener('close', off); }; d.addEventListener('close', off); d.onclick = e => { if (e.target === d) d.close(''); }; }
+function openMsgSheet(el) {
+  const m = msgsById.get(+el.dataset.id); if (!m || m.deleted || m.pending) return; const r = plain.get(m.id + ':' + m.iv) || {}, mine = m.sender_id === me.id;
+  if (navigator.vibrate) navigator.vibrate(18); holdAt = Date.now(); el.classList.add('held');
+  const o = (a, icon, label, cls = '') => `<button value="${a}" class="sheet-opt ${cls}">${ic(icon)}<span>${label}</span></button>`, opts = [o('reply', 'reply', t('reply'))];
+  if (m.kind === 'text' && !r.fail) opts.push(o('copy', 'copy', t('copy')));
+  if (mine && m.kind === 'text' && !r.fail) opts.push(o('edit', 'edit', t('edit')));
+  if (m.expires_at && m.id > 0) opts.push(o('keep', m.kept ? 'kept' : 'save', t(m.kept ? 'unkeep' : 'keep')));
+  if (m.kind === 'sticker') opts.push(o('savestk', 'save', t('saveSticker'))); else if (m.kind === 'image' && m.enc === 1) opts.push(o('mkstk', 'smile', t('makeSticker')));
+  if (mine && m.id > 0) opts.push(o('info', 'info', mi('info')));
+  if (mine) opts.push(o('del', 'trash', t('del'), 'danger'));
+  dialog(`<div class="sheet-prev">${esc(String(preview(m, r) || '').slice(0, 160))}</div>${opts.join('')}`, v => { el.classList.remove('held'); if (v) msgAct(v, m, el); });
+  sheetize();
+}
+(() => {
+  const box = $('#msgs'); let st = null;
+  box.addEventListener('touchstart', e => {
+    const el = e.target.closest('.m'); if (!el || e.touches.length !== 1 || el.classList.contains('dnote')) return;
+    const tt = e.touches[0]; if (tt.clientX > innerWidth - 28 || tt.clientX < 20) return;   // the screen edges belong to "go back"
+    st = { el, x: tt.clientX, y: tt.clientY, v: 0, mode: null, timer: setTimeout(() => { if (st && !st.mode) { st.mode = 'hold'; openMsgSheet(st.el); } }, 450) };
+  }, { passive: true });
+  box.addEventListener('touchmove', e => {
+    if (!st) return; const tt = e.touches[0], dx = tt.clientX - st.x, dy = tt.clientY - st.y;
+    if (!st.mode) { if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { clearTimeout(st.timer); st = null; return; } if (Math.abs(dx) < 12) return; clearTimeout(st.timer); st.mode = 'swipe'; st.el.style.transition = 'none'; }
+    if (st.mode !== 'swipe') return;
+    const rtl = document.documentElement.dir === 'rtl', m = msgsById.get(+st.el.dataset.id), canInfo = m && m.sender_id === me.id && m.id > 0 && !m.pending;
+    let v = rtl ? -dx : dx; if (v < 0 && !canInfo) v = 0; v = Math.max(-90, Math.min(90, v)); st.v = v;   // v > 0: reply side · v < 0: info side
+    st.el.style.transform = `translateX(${rtl ? -v : v}px)`; st.el.classList.toggle('sw-reply', v > 60); st.el.classList.toggle('sw-info', v < -60);
+  }, { passive: true });
+  const end = () => { if (!st) return; clearTimeout(st.timer); const s = st; st = null; if (s.mode !== 'swipe') return; holdAt = Date.now();
+    s.el.style.transition = ''; s.el.style.transform = ''; s.el.classList.remove('sw-reply', 'sw-info');
+    const m = msgsById.get(+s.el.dataset.id); if (!m || m.deleted || m.pending) return;
+    if (s.v > 60) msgAct('reply', m, s.el); else if (s.v < -60) msgAct('info', m, s.el); };
+  box.addEventListener('touchend', end, { passive: true }); box.addEventListener('touchcancel', end, { passive: true });
+  box.addEventListener('contextmenu', e => { const el = e.target.closest('.m'); if (!el) return; e.preventDefault(); if (!touchUI) openMsgSheet(el); });
+})();
+// who read / got my message
+function renderMsgInfo(b, id) {
+  $('#stTitle').textContent = mi('title');
+  const m = msgsById.get(+id); if (!m || !current) { b.innerHTML = `<p class="st-note">${mi('gone')}</p>`; return; }
+  const r = plain.get(m.id + ':' + m.iv) || {}, { others, at } = stateOf(m, current.id);
+  const read = myPres.receipts ? others.filter(x => at(x.seen_at)) : [], got = others.filter(x => !read.includes(x) && (at(x.delivered_at) || at(x.seen_at))), wait = others.filter(x => !read.includes(x) && !got.includes(x));
+  const person = (x, when) => `<div class="st-row">${avatarHtml(x.user_id, { cls: 'sm' })}<span class="st-label">${esc(nameOf(x.user_id))}</span><span class="st-val">${when ? fmtDay(when) + ' ' + fmtTime(when) : ''}</span></div>`;
+  const sec = (k, dots, list, when) => `<div class="st-sec mi-sec"><span class="trail s${dots}"><i></i><i></i><i></i></span> ${mi(k)} · ${list.length}</div><div class="st-group">${list.length ? list.map(x => person(x, when(x))).join('') : `<div class="st-row muted">${mi('none')}</div>`}</div>`;
+  b.innerHTML = `<div class="mi-prev"><div class="mi-bubble">${esc(String(preview(m, r) || '').slice(0, 300))}</div><small>${t('sentAt', { t: fmtDay(m.created_at) + ' ' + fmtTime(m.created_at) })}</small></div>
+${myPres.receipts ? sec('read', 3, read, x => x.seen_at) : `<p class="st-note">${mi('noRcpt')}</p>`}${sec('got', 2, got, x => x.delivered_at)}${wait.length ? sec('wait', 1, wait, () => null) : ''}`;
+}
+function onReceipt(p) {
+  if (!p || !p.c) return; const x = (members.get(p.c) || []).find(y => y.user_id === p.u); if (!x) return;
+  Object.assign(x, { delivered_at: p.d, seen_at: p.s, last_read: p.l }); refreshTrail(p.c);
+  const top = stPages[stPages.length - 1]; if (top && top.startsWith('minfo:')) renderSettings(top);
+}

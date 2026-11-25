@@ -1,8 +1,8 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v18';
-const SHELL = ['./', './index.html', './style.css?v=343', './app.js?v=343', './calls.js?v=343', './stories.js?v=343', './config.js?v=343', './crypto.js?v=343', './i18n.js?v=343', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v19';
+const SHELL = ['./', './index.html', './style.css?v=350', './app.js?v=350', './calls.js?v=350', './stories.js?v=350', './config.js?v=350', './crypto.js?v=350', './i18n.js?v=350', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
