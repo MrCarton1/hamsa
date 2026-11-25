@@ -29,7 +29,9 @@ function renderStrip() {   // the stories page (its own tab, like Snapchat)
 $('#stories').onclick = e => { if (e.target.closest('[data-add]')) return makeStatus(); const b = e.target.closest('[data-su]'); if (!b) return; const id = b.dataset.su;
   if (id === me.id && !(stories.get(me.id) || []).length) return makeStatus(); openStory(id); };
 // the two tabs at the bottom: chats and stories
-function setTab(tab) { $('#chatsView').hidden = tab !== 'chats'; $('#storiesView').hidden = tab !== 'stories'; $$('.tabbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); if (tab === 'stories') renderStrip(); }
+function setTab(tab) { const V = { chats: '#chatsView', stories: '#storiesView', me: '#meView' }, was = Object.keys(V).find(k => !$(V[k]).hidden);
+  for (const k in V) $(V[k]).hidden = k !== tab; $('#side').classList.toggle('on-me', tab === 'me'); if (tab === 'me') renderMe();
+  if (was !== tab) { const v = $(V[tab]); v.classList.remove('tab-in'); void v.offsetWidth; v.classList.add('tab-in'); } $$('.tabbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); if (tab === 'stories') renderStrip(); }
 $('.tabbar').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); };
 
 // ---- making a story: a full screen like Snapchat (camera, photos, or words on a colour) ----

@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '4.3.1';
+const VERSION = '4.3.2';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -462,17 +462,18 @@ async function openChat(id, quiet) {
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
   $('#voiceBtn').hidden = $('#videoBtn').hidden = !!c.is_group; lockComposer();
   $('#roomName').textContent = convTitle(c); avatarInto($('#roomAv'), c.is_group ? c.id : otherOf(c), c.is_group); $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
-  renderChats(); $('#msgs').innerHTML = `<div class="day">${t('loading')}</div>`; devicesFor(c.id);
+  setTimeout(renderChats, 320); $('#msgs').innerHTML = `<div class="day">${t('loading')}</div>`; devicesFor(c.id);   // the list is redrawn after the slide, so the slide stays smooth
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return; if (error) { $('#msgs').innerHTML = ''; return toast(errText(error)); }
   const rows = (data || []).reverse(); if (window.bkPrefetch) await bkPrefetch(rows).catch(() => {}); await Promise.all(rows.map(reveal)); if (current !== c) return;
   $('#msgs').innerHTML = ''; addMsg.bulk = true; rows.forEach(addMsg); addMsg.bulk = false; note(); scrollDown(); markRead(); viewing(true);
+  $('#msgs').classList.remove('fade-in'); void $('#msgs').offsetWidth; $('#msgs').classList.add('fade-in');
   if (window.rxLoad) rxLoad(c.id, rows).catch(() => {});
   if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
 function closeChat(fromHistory) {
-  stopTyping(); leaveTyping(); viewing(false); if (R.on) endRec(false); player.pause(); current = null; $('#app').classList.remove('open'); renderChats();
-  setTimeout(() => { if (!current) { $('#room').hidden = true; $('#empty').hidden = false; } }, 260);
+  stopTyping(); leaveTyping(); viewing(false); if (R.on) endRec(false); player.pause(); current = null; $('#app').classList.remove('open'); setTimeout(renderChats, 320);
+  setTimeout(() => { if (!current) { $('#room').hidden = true; $('#empty').hidden = false; } }, 340);
   if (!fromHistory && history.state && history.state.v === 'chat') history.back();
 }
 $('#backBtn').onclick = () => closeChat();
@@ -1005,12 +1006,14 @@ setInterval(() => { if (typers.size) showTyping(); }, 1000);
 // ---------- settings: a real settings screen with its own pages ----------
 const stPages = [];
 function openSettings(page = 'main', push = true) {
-  $('#settings').hidden = false; requestAnimationFrame(() => $('#settings').classList.add('open'));
+  const st = $('#settings'); if (st.hidden) { st.hidden = false; void st.offsetWidth; } st.classList.add('open');   // reflow first, so it always slides in instead of jumping
   if (push) history.pushState({ v: 'settings', page }, '');
   stPages.push(page); renderSettings(page);
 }
-function closeSettings(silent) { const s = $('#settings'); s.classList.remove('open'); stPages.length = 0; setTimeout(() => { if (!stPages.length) s.hidden = true; }, 260); if (!silent && history.state && history.state.v === 'settings') history.back(); }
-$('#settingsBtn').onclick = () => openSettings('main');
+function closeSettings(silent) { const s = $('#settings'); s.classList.remove('open'); stPages.length = 0; setTimeout(() => { if (!stPages.length) s.hidden = true; }, 340); renderMe(); if (!silent && history.state && history.state.v === 'settings') history.back(); }
+// the "me" tab: the main settings page sits in the bottom bar like WhatsApp; its inner pages still slide in
+function renderMe() { const v = $('#meView'); if (!v || v.hidden || !me) return; const tmp = document.createElement('div'); tmp.innerHTML = settingsMainHtml(); v.innerHTML = `<h2 class="me-h">${t('settings')}</h2>` + tmp.innerHTML; }
+$('#meView').addEventListener('click', e => { const r = e.target.closest('[data-page]'); if (r) return openSettings(r.dataset.page); if (e.target.closest('#stLogout')) return logout(); });
 $('#stBack').onclick = () => history.back();
 const row = (page, icon, label, value = '') => `<button class="st-row" data-page="${page}"><span class="st-ic">${ic(icon)}</span><span class="st-label">${label}</span><span class="st-val">${value}</span>${ic('fwd', 'chev')}</button>`;
 const toggle = (id, label, note, on) => `<label class="st-toggle"><span><b>${label}</b>${note ? `<small>${note}</small>` : ''}</span><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i class="sw"></i></label>`;
@@ -1019,12 +1022,16 @@ async function renderSettings(page) {
   const b = $('#stBody'), title = { main: 'settings', profile: 'profile', account: 'account', privacy: 'privacy', notif: 'notifications', look: 'appearance', lang: 'language', about: 'about', people: 'friendsTitle', timer: 'timerTitle', statusdur: 'statusDur' }[page] || (page.startsWith('user:') ? 'profileTitle' : 'settings');
   $('#stTitle').textContent = t(title); b.className = 'st-body page-in'; void b.offsetWidth; b.classList.add('go');
   const notifOn = pushOK() && Notification.permission === 'granted';
-  if (page === 'main') b.innerHTML = `<button class="st-me" data-page="profile">${avatarHtml(me.id, { cls: 'xl' })}<span><b>${esc(me.display_name)}</b><small dir="ltr">@${esc(me.username)}</small></span>${ic('fwd', 'chev')}</button>
+  if (page === 'main') b.innerHTML = settingsMainHtml(); else return renderSettingsRest(page, b);
+}
+function settingsMainHtml() { const notifOn = pushOK() && Notification.permission === 'granted';
+  return `<button class="st-me" data-page="profile">${avatarHtml(me.id, { cls: 'xl' })}<span><b>${esc(me.display_name)}</b><small dir="ltr">@${esc(me.username)}</small></span>${ic('fwd', 'chev')}</button>
 <div class="st-group">${row('account', 'key', t('account'))}${row('privacy', 'lock', t('privacy'))}${row('notif', 'bell', t('notifications'), notifOn ? '✓' : '')}${window.bkPage ? row('backup', 'shield', t('bkTitle'), typeof BK !== 'undefined' && BK.row ? '✓' : '') : ''}</div>
 <div class="st-group">${row('timer', 'timer', t('timerTitle'), timerLabel(prefs.msg_timer))}${row('statusdur', 'status', t('statusDur'), hoursLabel(prefs.status_hours))}</div>
 <div class="st-group">${row('look', 'palette', t('appearance'), t(theme))}${row('lang', 'globe', t('language'), L().langName)}</div>
 <div class="st-group">${row('about', 'info', t('about'), 'v' + VERSION)}</div>
-<div class="st-group"><button class="st-row danger" id="stLogout"><span class="st-ic">${ic('out')}</span><span class="st-label">${t('logout')}</span></button></div>`;
+<div class="st-group"><button class="st-row danger" id="stLogout"><span class="st-ic">${ic('out')}</span><span class="st-label">${t('logout')}</span></button></div>`; }
+async function renderSettingsRest(page, b) { const notifOn = pushOK() && Notification.permission === 'granted';
   if (page === 'profile') b.innerHTML = `<div class="st-photo">${avatarHtml(me.id, { cls: 'xxl' })}<label class="cam">${ic('camera')}<input type="file" accept="image/*" id="photoIn" hidden></label></div>
 <div class="st-group pad"><button class="btn ghost full" id="photoBtn">${t('changePhoto')}</button>${me.avatar_url ? `<button class="btn ghost full danger" id="photoDel">${t('removePhoto')}</button>` : ''}</div>
 <div class="st-group pad"><label class="st-field"><span>${t('name')}</span><input id="sName" maxlength="40" value="${esc(me.display_name)}"></label><button class="btn primary full" id="nameSave">${t('save')}</button></div>
@@ -1097,8 +1104,27 @@ async function setPhoto(file) {
 async function logout() {
   if (!confirm(t('logoutSure'))) return;
   try { await sb.rpc('touch_presence', { c: null, on_line: false }); await disablePush(true); if (myDev) { await sb.from('device_keys').update({ revoked: true }).eq('user_id', me.id).eq('device_id', myDev.id); await HC.forget(); await HC.forget('backup'); } } catch {}
-  closeSettings(true); await sb.auth.signOut();
+  closeSettings(true); if (window.setTab) setTab('chats'); await sb.auth.signOut();
 }
+
+// ---------- swipe from the edge to go back (like iPhone apps): the screen follows the finger ----------
+function edgeSwipe(el, can, back, under) {
+  let sx = null, sy = 0, go = null, last = 0, lastT = 0, v = 0;
+  const rtl = () => document.documentElement.dir === 'rtl', s = () => rtl() ? -1 : 1, mob = () => matchMedia('(max-width:760px)').matches;
+  const set = p => { el.style.transform = `translateX(${s() * p * 100}%)`; if (under) under.style.transform = `translateX(${-s() * 22 * (1 - p)}%)`; };
+  el.addEventListener('touchstart', e => { sx = null; if (!can() || e.touches.length > 1 || (!mob() && under)) return; const x = e.touches[0].clientX;
+    if (rtl() ? x < innerWidth - 32 : x > 32) return; sx = x; sy = e.touches[0].clientY; go = null; last = x; lastT = e.timeStamp; v = 0; }, { passive: true });
+  el.addEventListener('touchmove', e => { if (sx == null) return; const x = e.touches[0].clientX, dx = (x - sx) * s(), dy = e.touches[0].clientY - sy;
+    if (go === null) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sx = null; return; } if (dx < 10) return; go = true; el.style.transition = 'none'; if (under) under.style.transition = 'none'; }
+    if (e.cancelable) e.preventDefault(); v = ((x - last) * s()) / Math.max(1, e.timeStamp - lastT); last = x; lastT = e.timeStamp; set(Math.max(0, Math.min(1, dx / innerWidth))); }, { passive: false });
+  const end = e => { if (sx == null || !go) { sx = null; return; } const dx = (last - sx) * s(); sx = null;
+    el.style.transition = under ? '' : 'transform .26s cubic-bezier(.2,.8,.2,1)'; if (under) under.style.transition = '';
+    const close = dx > innerWidth * .35 || v > .45; el.style.transform = ''; if (under) under.style.transform = '';
+    if (close) back(); setTimeout(() => { el.style.transition = ''; }, 300); };
+  el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+}
+edgeSwipe($('#chat'), () => !!current && $('#settings').hidden && $('#story').hidden, () => closeChat(), $('#side'));
+edgeSwipe($('#settings'), () => stPages.length > 0, () => history.back());
 
 // ---------- back button / swipe back: one step at a time, like a real app ----------
 addEventListener('popstate', () => {

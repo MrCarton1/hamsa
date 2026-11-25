@@ -833,3 +833,24 @@ dialog.sheet .sheet-opt:focus{outline:none}dialog.sheet .sheet-opt:focus-visible
 /* v4.3: profile picture lives in the bottom bar, next to chats and stories */
 .tabbar .tb-me .av{width:24px!important;height:24px!important;font-size:11px;box-shadow:0 0 0 1.5px var(--line)}
 .tabbar .tb-me:active .av{box-shadow:0 0 0 2px var(--lamp)}
+
+/* v4.3.1: smoother moving between screens */
+@media (max-width:760px){
+  .side,.chat{transition:transform .34s cubic-bezier(.32,.72,0,1);will-change:transform}
+  .chat{box-shadow:0 0 28px rgba(0,0,0,.35)}
+}
+.settings{transition:transform .34s cubic-bezier(.32,.72,0,1);will-change:transform}
+.tab-in{animation:tabIn .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes tabIn{from{opacity:0;transform:translateY(8px)}}
+.msgs.fade-in{animation:msgIn .2s ease-out}
+@keyframes msgIn{from{opacity:0}}
+.tabbar .tb-me{display:grid;place-items:center}
+.tabbar .tb-me .av{width:28px!important;height:28px!important;font-size:12px}
+@media (prefers-reduced-motion:reduce){.tab-in,.msgs.fade-in{animation:none}.side,.chat,.settings{transition:none}}
+
+/* v4.3.2: the "me" tab */
+.meview{flex:1;overflow:auto;padding:4px 12px 24px;min-height:0}
+.me-h{font-size:22px;margin:2px 4px 12px}
+.tabbar .tb-me.on .av{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--lamp)}
+.side.on-me>.bar{display:none}
+.side.on-me .me-h{margin-top:max(14px,env(safe-area-inset-top));font-size:26px}
