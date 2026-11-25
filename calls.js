@@ -2,6 +2,13 @@
 // The connection details (SDP) are encrypted for the other person's phone with the same keys as messages, and the
 // call itself is encrypted by WebRTC (DTLS-SRTP). The server only learns that a call happened, never what was said.
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }];
+let ICE_EXTRA = [], iceAt = 0;   // relay servers (TURN) from our server: calls then connect on any network
+window.loadIce = async function loadIce() {
+  if (!accessToken || Date.now() - iceAt < 6 * 3600e3) return;
+  try { const r = await fetch(HAMSA.url + '/functions/v1/push?ice=1', { headers: { apikey: HAMSA.key, Authorization: 'Bearer ' + accessToken } });
+    const j = await r.json(); if (Array.isArray(j.iceServers)) { ICE_EXTRA = j.iceServers; iceAt = Date.now(); } } catch {}
+};
+setInterval(() => { if (!document.hidden) loadIce(); }, 3600e3);
 let call = null;   // { id, conv, peer, video, role: 'out'|'in', state, pc, local, row, t0 }
 const callOK = () => !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 const FINISHED = ['declined', 'busy', 'missed', 'ended'];
@@ -10,13 +17,17 @@ function getMedia(video, facing = 'user') {
   return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     video: video ? { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } } : false });
 }
-function iceDone(pc) {   // wait until this phone has found its ways to be reached (or 2.5 s)
-  return new Promise(res => { if (pc.iceGatheringState === 'complete') return res();
-    const f = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', f); res(); } };
-    pc.addEventListener('icegatheringstatechange', f); setTimeout(res, 2500); });
+function iceDone(pc) {   // send as soon as this phone has a way to be reached from outside (not the full 2.5 s every time)
+  return new Promise(res => {
+    const want = ICE_EXTRA.length > 0; let t = null, over = false;
+    const done = () => { if (over) return; over = true; clearTimeout(t); clearTimeout(max); clearInterval(poll); res(); };
+    const check = () => { const k = pc._kinds || {}; if (pc.iceGatheringState === 'complete') return done();
+      if (k.relay || (!want && k.srflx)) { if (!t) t = setTimeout(done, 250); } else if (k.srflx && !t) t = setTimeout(done, 1200); };
+    const poll = setInterval(check, 50), max = setTimeout(done, 2500); check(); });
 }
 function newPC() {
-  const c = call, pc = new RTCPeerConnection({ iceServers: ICE }); c.pc = pc;
+  const c = call, pc = new RTCPeerConnection({ iceServers: [...ICE, ...ICE_EXTRA] }); c.pc = pc; pc._kinds = {};
+  pc.addEventListener('icecandidate', e => { if (!e.candidate) return; const ty = e.candidate.type || (/ typ (\w+)/.exec(e.candidate.candidate) || [])[1]; if (ty) pc._kinds[ty] = true; });
   pc.ontrack = e => { const v = $('#callRemote'), st = e.streams[0] || new MediaStream([e.track]); if (v.srcObject !== st) v.srcObject = st; v.play().catch(() => {}); paintCall(); };
   const watch = () => { if (call !== c) return; const st = pc.connectionState || pc.iceConnectionState;
     if (st === 'connected' || st === 'completed') { if (!c.t0) { c.t0 = Date.now(); tone(null); c.tick = setInterval(paintCall, 1000); } c.state = 'live'; paintCall(); }
@@ -63,6 +74,7 @@ async function onCallRow(r, ev) {
     await needProfiles([r.caller]);
     call = { id: r.id, conv: r.conversation_id, peer: r.caller, video: r.video, role: 'in', state: 'incoming', row: r };
     showCall(); tone('ring');
+    call.pre = (async () => { const spub = await senderPub({ sender_device: r.offer.sender_device, sender_id: r.caller }); const { payload } = await HC.open(r.offer, myDev, spub); return { spub, payload }; })().catch(() => null);
     call.noAnswer = setTimeout(() => { if (call && call.id === r.id && call.state === 'incoming') endCall(null); }, 50000);
     return;
   }
@@ -82,9 +94,10 @@ async function acceptCall() {
   const c = call; if (!c || c.state !== 'incoming') return; c.state = 'connecting'; tone(null); clearTimeout(c.noAnswer); paintCall();
   try {
     if (!callOK()) throw Object.assign(new Error('x'), { msg: t('callUnsupported') });
-    c.local = await getMedia(c.video); if (call !== c) return c.local.getTracks().forEach(x => x.stop()); paintLocal();
-    const spub = await senderPub({ sender_device: c.row.offer.sender_device, sender_id: c.peer });
-    const { payload } = await HC.open(c.row.offer, myDev, spub);
+    const [media, pre] = await Promise.all([getMedia(c.video), c.pre || null]);
+    c.local = media; if (call !== c) return c.local.getTracks().forEach(x => x.stop()); paintLocal();
+    const spub = pre ? pre.spub : await senderPub({ sender_device: c.row.offer.sender_device, sender_id: c.peer });
+    const { payload } = pre ? pre : await HC.open(c.row.offer, myDev, spub);
     const pc = newPC(); c.local.getTracks().forEach(tr => pc.addTrack(tr, c.local));
     await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp }); await pc.setLocalDescription(await pc.createAnswer()); await iceDone(pc); if (call !== c) return;
     const box = await HC.seal({ sdp: pc.localDescription.sdp }, myDev, [{ device_id: c.row.offer.sender_device, pub: spub }]);
@@ -146,7 +159,7 @@ function tone(kind) {
   const beep = (f1, f2, dur, vol) => { const x = toneCtx; if (!x) return; const g = x.createGain(), t0 = x.currentTime; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .03); g.gain.setValueAtTime(vol, t0 + dur - .05); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); g.connect(x.destination);
     [f1, f2].forEach(f => { const o = x.createOscillator(); o.frequency.value = f; o.connect(g); o.start(t0); o.stop(t0 + dur); }); };
   const play = () => { if (toneCtx && toneCtx.state === 'suspended') toneCtx.resume().catch(() => {});
-    if (kind === 'ring') { beep(988, 784, .32, .2); setTimeout(() => beep(988, 784, .32, .2), 420); if (navigator.vibrate) navigator.vibrate([400, 200, 400]); }
+    if (kind === 'ring') { [[1046.5, 0], [1318.5, 180], [1568, 360], [1318.5, 620], [1568, 800], [2093, 980]].forEach(([f, at]) => setTimeout(() => beep(f, f * 1.5, .2, .18), at)); if (navigator.vibrate) navigator.vibrate([400, 200, 400]); }
     else beep(440, 480, 1.4, .06); };
   play(); toneT = setInterval(play, kind === 'ring' ? 2400 : 4000);
 }

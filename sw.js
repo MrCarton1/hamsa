@@ -1,8 +1,8 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v13';
-const SHELL = ['./', './index.html', './style.css?v=321', './app.js?v=321', './calls.js?v=321', './stories.js?v=321', './config.js?v=321', './crypto.js?v=321', './i18n.js?v=321', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v14';
+const SHELL = ['./', './index.html', './style.css?v=330', './app.js?v=330', './calls.js?v=330', './stories.js?v=330', './config.js?v=330', './crypto.js?v=330', './i18n.js?v=330', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
@@ -30,6 +30,7 @@ self.addEventListener('push', e => {
     let body = T.notifTitle;
     if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker; else if (d.k === 'call') body = T.callPrev;
     if (d.k === 'ring') return self.registration.showNotification(d.title || 'همسة', { body: d.v ? T.incomingVideo : T.incomingVoice, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'call-' + d.call, renotify: true, requireInteraction: true, vibrate: [500, 250, 500, 250, 500, 250, 500], dir: T.dir, lang, data: { conv: d.conv, call: d.call } });
+    if (d.k === 'missed') return self.registration.showNotification(d.title || 'همسة', { body: d.v ? T.missedVideo : T.missedCall, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'call-' + d.call, renotify: true, dir: T.dir, lang, data: { conv: d.conv } });
     if (d.k === 'freq' || d.k === 'facc') return self.registration.showNotification(d.title || 'همسة', { body: d.k === 'freq' ? T.pushFriendReq : T.pushFriendAcc, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'friend', renotify: true, dir: T.dir, lang, data: { people: d.k === 'freq' } });
     if (d.e) { try { const me = await HC.current(); if (me) { const r = await HC.open({ ct: d.e.ct, iv: d.e.iv, keys: { [me.id]: d.e.k } }, me, d.e.sp); if (r.payload.t) body = (d.k === 'image' ? T.photo + ' ' : '') + r.payload.t; } } catch {} }
     await self.registration.showNotification(d.title || 'همسة', { body: String(body).slice(0, 180), icon: 'icon-192.png', badge: 'icon-192.png', tag: d.conv || 'hamsa', renotify: true, dir: T.dir, lang, data: { conv: d.conv } });

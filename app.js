@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.2.1';
+const VERSION = '3.3.0';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -121,7 +121,7 @@ async function start(user) {
     await initDevice();
     const [{ data: nk }, { data: pr }] = await Promise.all([sb.from('contact_names').select('target,name'), sb.from('presence').select('*').eq('user_id', p.id).maybeSingle()]);
     nicks = new Map((nk || []).map(x => [x.target, x.name])); if (pr) myPres = { visible: pr.visible, receipts: pr.receipts };
-    await Promise.all([loadChats(), loadFriends(), loadPrefs()]); await live(); syncClock(); viewing(false); delivered(); loadStatuses(); checkRinging();
+    await Promise.all([loadChats(), loadFriends(), loadPrefs()]); await live(); inbox(); if (window.loadIce) loadIce(); syncClock(); viewing(false); delivered(); loadStatuses(); checkRinging();
     const qs = new URLSearchParams(location.search), want = qs.get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
     if (qs.get('people')) openSettings('people');
     pushStart();
@@ -235,7 +235,7 @@ async function goChat(id) {   // leave the friends sheet and open the chat in it
 async function addFriend() {
   const u = $('#pfUser').value.trim().toLowerCase().replace(/^@/, ''), msg = $('#pfMsg'); msg.textContent = '';
   if (!u) return; if (u === me.username) return msg.textContent = t('thatsYou');
-  const { data: p } = await sb.from('profiles').select('*').eq('username', u).maybeSingle(); if (!p) return msg.textContent = t('noUser');
+  const { data: found } = await sb.rpc('find_user', { u }); const p = found && found[0]; if (!p) return msg.textContent = t('noUser');
   profiles.set(p.id, p);
   const ex = friends.find(f => (f.requester === p.id && f.addressee === me.id) || (f.requester === me.id && f.addressee === p.id));
   if (ex && ex.status === 'accepted') return msg.textContent = t('alreadyFriend');
@@ -629,15 +629,42 @@ function stickerMaker(file) {
 function bumpConv(m) { const c = convs.find(x => x.id === m.conversation_id); if (!c) return loadChats();
   c.last = m; c.lastText = plain.get(m.id + ':' + m.iv) || (m.enc !== 1 ? { text: m.body } : null); if (!(current && current.id === c.id) && m.sender_id !== me.id) c.unread++;
   sortConvs(); renderChats(); }
+const gotMsg = new Set();
+async function onNewMsg(m) {
+  if (!m || !m.id || gotMsg.has(m.id)) return; gotMsg.add(m.id); if (gotMsg.size > 3000) gotMsg.clear();
+  if (pendIv.has(m.iv)) return;   // this phone sent it and is already showing it
+  await needProfiles([m.sender_id]); if (m.sender_id !== me.id) delivered(); await reveal(m);
+  const here = current && current.id === m.conversation_id;
+  if (here && !known(m)) { const b = $('#msgs'), near = b.scrollHeight - b.scrollTop - b.clientHeight < 200; addMsg(m); if (near || m.sender_id === me.id) scrollDown(); if (!document.hidden) markRead(); }
+  if (m.sender_id !== me.id && !document.hidden && m.kind !== 'call') hamsaSound(here ? 'soft' : 'msg');
+  bumpConv(m); typers.delete(m.sender_id);
+}
+// my own private line: the server sends every new message and call here the moment it is saved (faster than the live feed)
+const inboxCh = () => sb.getChannels().find(x => me && x.topic.endsWith('user:' + me.id));
+async function inbox() {
+  for (const ch of sb.getChannels().filter(x => /user:/.test(x.topic))) await sb.removeChannel(ch);
+  sb.channel('user:' + me.id, { config: { private: true } })
+    .on('broadcast', { event: 'msg' }, ({ payload }) => onNewMsg(payload))
+    .on('broadcast', { event: 'call' }, ({ payload }) => payload && payload.row && onCallRow(payload.row, payload.ev))
+    .subscribe();
+}
+// ---------- the همسة sound: its own short "whisper" chime, so you know it is همسة without looking ----------
+let sndCtx = null;
+function hamsaSound(kind) {
+  try { sndCtx = sndCtx || new (window.AudioContext || window.webkitAudioContext)(); if (sndCtx.state === 'suspended') sndCtx.resume(); } catch { return; }
+  const x = sndCtx, t0 = x.currentTime + .01, vol = kind === 'soft' ? .07 : .16;
+  const note = (f, at, dur) => { const o = x.createOscillator(), o2 = x.createOscillator(), g = x.createGain(); o.type = 'sine'; o2.type = 'triangle'; o.frequency.value = f; o2.frequency.value = f * 2;
+    g.gain.setValueAtTime(0.0001, t0 + at); g.gain.exponentialRampToValueAtTime(vol, t0 + at + .015); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+    const g2 = x.createGain(); g2.gain.value = .25; o.connect(g); o2.connect(g2); g2.connect(g); g.connect(x.destination); o.start(t0 + at); o2.start(t0 + at); o.stop(t0 + at + dur + .05); o2.stop(t0 + at + dur + .05); };
+  if (kind === 'soft') note(1318.5, 0, .18);                                // one quiet "tik" inside the open chat
+  else { note(1046.5, 0, .22); note(1568, .11, .32); note(2093, .24, .45); }   // rising three-note whisper: do-sol-do
+  if (kind !== 'soft' && navigator.vibrate) navigator.vibrate(60);
+}
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { try { sndCtx = sndCtx || new (window.AudioContext || window.webkitAudioContext)(); if (sndCtx.state === 'suspended') sndCtx.resume(); } catch {} }, { passive: true }));
 async function live() {
   for (const ch of sb.getChannels().filter(x => x.topic.endsWith('hamsa-live'))) await sb.removeChannel(ch);
   sb.channel('hamsa-live')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async ({ new: m }) => {
-      if (pendIv.has(m.iv)) return;   // this phone sent it and is already showing it
-      await needProfiles([m.sender_id]); if (m.sender_id !== me.id) delivered(); await reveal(m);
-      if (current && current.id === m.conversation_id && !known(m)) { const b = $('#msgs'), near = b.scrollHeight - b.scrollTop - b.clientHeight < 200; addMsg(m); if (near || m.sender_id === me.id) scrollDown(); if (!document.hidden) markRead(); }
-      bumpConv(m); typers.delete(m.sender_id);
-    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) => onNewMsg(m))
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, async ({ new: m }) => {
       if (current && current.id === m.conversation_id) await updateMsg(m); const c = convs.find(x => x.id === m.conversation_id);
       if (c && c.last && c.last.id === m.id) { c.last = m; c.lastText = await reveal(m); renderChats(); } })
@@ -657,11 +684,12 @@ async function live() {
 }
 
 // ---------- staying in sync (phones pause the live connection in the background) ----------
-let lastSync = 0;
+let lastSync = 0, forceLive = false;
 const liveCh = () => sb.getChannels().find(x => x.topic.endsWith('hamsa-live'));
 async function resync() {
   if (!me || Date.now() - lastSync < 3000) return; lastSync = Date.now();
-  const ch = liveCh(); if (!ch || ch.state !== 'joined') await live();
+  const ch = liveCh(), force = forceLive; forceLive = false; if (force || !ch || ch.state !== 'joined') await live();
+  const ib = inboxCh(); if (force || !ib || ib.state !== 'joined') await inbox();
   if (current && (!typingCh || typingCh.state !== 'joined')) joinTyping(current.id);
   await Promise.all([loadChats(), loadFriends()]); delivered(); loadStatuses(); if (!call) checkRinging();
   if (current) { const lastId = Math.max(0, ...[...msgsById.keys()].filter(k => k > 0));
@@ -677,9 +705,10 @@ const srvNow = () => Date.now() + skew;
 let delT = 0, delPend = null;
 function delivered() { if (!me) return; const wait = 2000 - (Date.now() - delT); if (wait > 0) { if (!delPend) delPend = setTimeout(() => { delPend = null; delivered(); }, wait); return; } delT = Date.now(); sb.rpc('mark_delivered').then(() => {}); }
 setInterval(() => { if (me && !document.hidden) viewing(!!current); }, 10000);
-setInterval(() => { if (me && !document.hidden) { const ch = liveCh(); if (!ch || ch.state !== 'joined') resync(); } }, 8000);
+setInterval(() => { if (me && !document.hidden) { const ch = liveCh(), ib = inboxCh(); if (!ch || ch.state !== 'joined' || !ib || ib.state !== 'joined') resync(); } }, 5000);
 setInterval(() => { if (me && !document.hidden) resync(); }, 45000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) { goOffline(); stopTyping(); if (R.on) endRec(true); } else { if (current) { markRead(); updateStatus(); } viewing(!!current); delivered(); resync(); checkUpdate(); } });
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && me && hiddenAt && Date.now() - hiddenAt > 20000) { lastSync = 0; forceLive = true; } if (document.hidden) hiddenAt = Date.now(); if (document.hidden) { goOffline(); stopTyping(); if (R.on) endRec(true); } else { if (current) { markRead(); updateStatus(); } viewing(!!current); delivered(); resync(); checkUpdate(); } });
 addEventListener('pagehide', goOffline);
 addEventListener('online', () => resync());
 addEventListener('focus', () => resync());
