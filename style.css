@@ -532,3 +532,9 @@ dialog.sheet{margin:auto auto 0;width:min(520px,100%);max-width:100%;border-radi
 /* profile pictures are never stretched, wherever they appear (some rows give every <span> "flex:1", which pulled the picture wide) */
 .av{flex:0 0 auto!important;aspect-ratio:1/1;background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important}
 .m img,.viewer img,.sm-box img,.gbig{height:auto;object-fit:contain}
+
+/* notification check */
+.st-val.good{color:#2FB36A;font-weight:600}.st-val.bad{color:var(--danger);font-weight:600}
+.diag-bad{background:rgba(255,122,133,.12);color:var(--text);padding:14px;border-radius:16px;line-height:1.6;margin:0 0 12px}
+.diag-good{background:rgba(47,179,106,.14);padding:14px;border-radius:16px;font-weight:600;margin:0 0 12px}
+.st-body .steps{line-height:1.7;padding-inline-start:22px;margin:6px 0 14px}.st-body .steps li{margin-bottom:6px}

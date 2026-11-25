@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.4.2';
+const VERSION = '3.4.3';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -954,7 +954,7 @@ async function renderSettings(page) {
   if (page === 'privacy') b.innerHTML = `<div class="st-group">${toggle('tVis', t('showOnline'), t('showOnlineNote'), myPres.visible)}${toggle('tRec', t('readReceipts'), t('readReceiptsNote'), myPres.receipts)}${toggle('tPhoto', t('photoOpen'), t('photoOpenNote'), me.photo_open !== false)}</div>
 <div class="st-group">${row('timer', 'timer', t('timerTitle'), timerLabel(prefs.msg_timer))}</div>
 <div class="st-group pad e2e"><div class="st-h">${ic('shield')} ${t('e2e')}</div><p class="muted">${t('e2eNote')}</p><p class="muted small">${t('thisDevice')}: <span dir="ltr">${esc((myDev && myDev.id || '').slice(0, 10))}</span></p></div>`;
-  if (page === 'notif') b.innerHTML = `<div class="st-group">${toggle('tPush', t('newNotif'), t('notifNote'), notifOn)}</div>${installEvt || (isIOS && !installed()) ? `<div class="st-group">${row('install', 'install', t('installApp'))}</div>` : ''}`;
+  if (page === 'notif') b.innerHTML = `<div class="st-group">${toggle('tPush', t('newNotif'), t('notifNote'), notifOn)}</div><div class="st-group">${row('pushdiag', 'bell', nd('open'))}</div>${installEvt || (isIOS && !installed()) ? `<div class="st-group">${row('install', 'install', t('installApp'))}</div>` : ''}`;
   if (page === 'look') b.innerHTML = `<div class="st-group">${radio('theme', 'dark', t('dark'), theme === 'dark')}${radio('theme', 'light', t('light'), theme === 'light')}${radio('theme', 'auto', t('auto'), theme === 'auto')}</div>`;
   if (page === 'lang') b.innerHTML = `<div class="st-group">${Object.entries(I18N).map(([k, v]) => radio('lang', k, v.langName, lang === k)).join('')}</div>`;
   if (page === 'people') { b.innerHTML = `<form id="pfForm" class="st-group pad addf"><div class="st-h">${ic('userPlus')} ${t('addFriends')}</div><div class="add"><input id="pfUser" dir="ltr" placeholder="${esc(t('addFriendPh'))}" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false"><button class="btn primary">${t('add')}</button></div><p id="pfMsg" class="hint"></p></form>
@@ -962,6 +962,7 @@ async function renderSettings(page) {
   if (page === 'timer') b.innerHTML = `<p class="st-note">${t('timerNote')}</p><div class="st-group">${TIMERS.map(([v, k]) => radio('timer', v, t(k), prefs.msg_timer === v)).join('')}</div>`;
   if (page === 'statusdur') b.innerHTML = `<p class="st-note">${t('statusDurNote')}</p><div class="st-group">${SHOURS.map(([v, k]) => radio('sdur', v, t(k), prefs.status_hours === v)).join('')}</div>`;
   if (page.startsWith('user:')) renderProfile(b, page.slice(5));
+  if (page === 'pushdiag') renderPushDiag(b);
   if (groupPage(page)) renderGroup(b, page.slice(page.indexOf(':') + 1), page.slice(0, page.indexOf(':')));
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
 }
@@ -1113,3 +1114,85 @@ function openPhoto(id) {
   const v = document.createElement('div'); v.className = 'viewer'; const im = document.createElement('img'); im.src = p.avatar_url.replace(/\.jpg$/, '-full.jpg'); im.onerror = () => { im.onerror = null; im.src = p.avatar_url; };
   v.appendChild(im); v.onclick = () => v.remove(); document.body.appendChild(v);
 }
+
+// ---------- notification check: finds why notifications don't work on this phone and says exactly what to do ----------
+const ND = {
+  ar: { title: 'فحص الإشعارات', open: 'الإشعارات ما تشتغل؟ افحصها', ok: '✅ الإشعارات شغالة على هذا الجوال', test: 'أرسل إشعار تجربة', testSent: 'أرسلنا إشعار تجربة. إذا ما وصلك خلال دقيقة، شوف الخطوات تحت 👇', testText: 'تجربة ✅ الإشعارات توصلك',
+    browser: 'المتصفح', perm: 'إذن الإشعارات', sub: 'الربط مع السيرفر', yes: 'تمام', no: 'لا', granted: 'مسموح', denied: 'ممنوع', def: 'ما انسأل للحين',
+    inapp: 'أنت فاتح همسة من داخل تطبيق ثاني (مثل سناب أو انستقرام). هذا ما يدعم الإشعارات. افتح الرابط في متصفح Chrome.',
+    unsupported: 'هذا المتصفح ما يدعم الإشعارات. افتح همسة في متصفح Chrome.',
+    ios: 'في الآيفون لازم تضيف همسة للشاشة الرئيسية أول، وتفتحها من الأيقونة.',
+    ask: 'اسمح بالإشعارات', denied1: 'الإشعارات ممنوعة لهمسة. عشان تفتحها:',
+    dApp: 'إذا همسة مثبتة كتطبيق: اضغط مطولًا على أيقونة همسة ← معلومات التطبيق ← الإشعارات ← شغّلها.',
+    dChrome: 'إذا فاتحها من Chrome: اضغط على القفل 🔒 جنب الرابط فوق ← الأذونات ← الإشعارات ← سماح.',
+    dSamsung: 'في متصفح سامسونج: القائمة ☰ ← الإعدادات ← المواقع والتنزيلات ← الإشعارات ← شغّل همسة.',
+    dThen: 'بعدها سكّر همسة وافتحها من جديد، وارجع لهذي الصفحة.',
+    brave: 'في متصفح Brave لازم تشغّل خيار: الإعدادات ← الخصوصية والأمان ← "استخدام خدمات Google لإشعارات الدفع".',
+    failSub: 'الجوال سمح بالإشعارات بس الربط مع السيرفر فشل. السبب:',
+    retry: 'حاول مرة ثانية', noArrive: 'إذا كل شي هنا تمام بس الإشعار ما يوصل:',
+    a1: 'إعدادات الجوال ← التطبيقات ← Chrome (أو همسة) ← الإشعارات ← تأكد إنها مشغلة، والصوت مشغل.',
+    a2: 'إعدادات الجوال ← البطارية ← اختر Chrome (أو همسة) ← "بدون قيود" أو "غير محسّن"، عشان الجوال ما يوقفه.',
+    a3: 'تأكد إن وضع "عدم الإزعاج" مطفي.', a4: 'لا تقفل Chrome من قائمة التطبيقات المفتوحة بالسحب.' },
+  en: { title: 'Notification check', open: 'Notifications not working? Check them', ok: '✅ Notifications work on this phone', test: 'Send a test notification', testSent: 'Test sent. If it does not arrive within a minute, follow the steps below 👇', testText: 'Test ✅ notifications reach you',
+    browser: 'Browser', perm: 'Notification permission', sub: 'Connected to the server', yes: 'Yes', no: 'No', granted: 'Allowed', denied: 'Blocked', def: 'Not asked yet',
+    inapp: 'You opened Hamsa inside another app (like Snapchat or Instagram). That does not support notifications. Open the link in Chrome.',
+    unsupported: 'This browser does not support notifications. Open Hamsa in Chrome.',
+    ios: 'On iPhone, add Hamsa to the Home Screen first and open it from the icon.',
+    ask: 'Allow notifications', denied1: 'Notifications are blocked for Hamsa. To allow them:',
+    dApp: 'If Hamsa is installed: long-press the Hamsa icon → App info → Notifications → turn on.',
+    dChrome: 'If it is open in Chrome: tap the lock 🔒 next to the address → Permissions → Notifications → Allow.',
+    dSamsung: 'Samsung Internet: menu ☰ → Settings → Sites and downloads → Notifications → turn on Hamsa.',
+    dThen: 'Then close Hamsa, open it again and come back to this page.',
+    brave: 'In Brave turn on: Settings → Privacy and security → "Use Google services for push messaging".',
+    failSub: 'The phone allowed notifications but connecting to the server failed. Reason:',
+    retry: 'Try again', noArrive: 'If everything here is fine but nothing arrives:',
+    a1: 'Phone Settings → Apps → Chrome (or Hamsa) → Notifications → make sure they and sound are on.',
+    a2: 'Phone Settings → Battery → Chrome (or Hamsa) → "Unrestricted" / "Not optimized", so the phone does not stop it.',
+    a3: 'Make sure Do Not Disturb is off.', a4: 'Do not swipe Chrome away from the recent apps list.' }
+};
+const nd = k => (ND[lang] || ND.en)[k] ?? ND.en[k];
+function browserName() { const u = navigator.userAgent;
+  if (/Instagram|FBAN|FBAV|Snapchat|TikTok|Line\/|; wv\)/i.test(u)) return 'inapp';
+  if (navigator.brave) return 'Brave'; if (/SamsungBrowser/i.test(u)) return 'Samsung Internet'; if (/OPR\/|Opera/i.test(u)) return 'Opera';
+  if (/Edg\//i.test(u)) return 'Edge'; if (/Firefox|FxiOS/i.test(u)) return 'Firefox'; if (/CriOS|Chrome/i.test(u)) return 'Chrome'; if (/Safari/i.test(u)) return 'Safari'; return '?'; }
+async function renderPushDiag(b) {
+  $('#stTitle').textContent = nd('title');
+  const br = browserName(), ok = pushOK(), perm = ok ? Notification.permission : 'none';
+  let sub = null, err = '';
+  if (ok && perm === 'granted') { try { await subscribe(true); const reg = await navigator.serviceWorker.ready; sub = await reg.pushManager.getSubscription(); } catch (x) { err = x.message || String(x); } }
+  const line = (k, v, good) => `<div class="st-row"><span class="st-label">${nd(k)}</span><span class="st-val ${good ? 'good' : 'bad'}">${v}</span></div>`;
+  const steps = a => `<ol class="steps">${a.map(x => `<li>${x}</li>`).join('')}</ol>`;
+  let main = '';
+  if (br === 'inapp') main = `<p class="diag-bad">${nd('inapp')}</p>`;
+  else if (isIOS && !installed()) main = `<p class="diag-bad">${nd('ios')}</p><button class="btn primary gwide" data-diag="ioshelp">${t('installApp')}</button>`;
+  else if (!ok) main = `<p class="diag-bad">${nd('unsupported')}</p>`;
+  else if (perm === 'default') main = `<button class="btn primary gwide" data-diag="ask">${nd('ask')}</button>`;
+  else if (perm === 'denied') main = `<p class="diag-bad">${nd('denied1')}</p>${steps([nd('dApp'), br === 'Samsung Internet' ? nd('dSamsung') : nd('dChrome'), nd('dThen')])}`;
+  else if (!sub) main = `<p class="diag-bad">${nd('failSub')} <span dir="ltr">${esc(err || '?')}</span></p>${br === 'Brave' ? `<p>${nd('brave')}</p>` : ''}<button class="btn primary gwide" data-diag="retry">${nd('retry')}</button>`;
+  else main = `<p class="diag-good">${nd('ok')}</p><button class="btn primary gwide" data-diag="test">${nd('test')}</button>`;
+  b.innerHTML = `<div class="st-group">${line('browser', br === 'inapp' ? '✗' : br, br !== 'inapp' && ok)}${line('perm', { granted: nd('granted'), denied: nd('denied'), default: nd('def'), none: '✗' }[perm], perm === 'granted')}${line('sub', sub ? nd('yes') : nd('no'), !!sub)}</div>
+${main}${perm === 'granted' && sub ? `<p class="st-note">${nd('noArrive')}</p>${steps([nd('a1'), nd('a2'), nd('a3'), nd('a4')])}` : ''}`;
+}
+$('#stBody').addEventListener('click', async e => {
+  const d = e.target.closest('[data-diag]'); if (!d) return; const a = d.dataset.diag;
+  if (a === 'ioshelp') return iosHelp();
+  if (a === 'ask') { await enablePush(); return renderSettings('pushdiag'); }
+  if (a === 'retry') return renderSettings('pushdiag');
+  if (a === 'test') { d.disabled = true;
+    try { const reg = await navigator.serviceWorker.ready; await reg.showNotification('همسة', { body: nd('testText'), icon: 'icon-192.png', badge: 'icon-192.png', tag: 'hamsa-test', dir: L().dir, lang }); } catch {}
+    sb.functions.invoke('push', { body: { test: nd('testText') } }).catch(() => {});
+    toast(nd('testSent')); setTimeout(() => d.disabled = false, 4000); }
+});
+// Arabic: go back by swiping from the RIGHT edge (the phone's own gesture always starts on the left)
+(() => {
+  let x0 = 0, y0 = 0, el = null, dx = 0, drag = false;
+  const layer = () => { if (!$('#dlg').open && $('#story').hidden && $('#call').hidden && stPages.length && !$('#settings').hidden) return $('#settings');
+    if (current && innerWidth <= 760 && !$('#dlg').open && $('#story').hidden && $('#call').hidden) return $('#chat'); return null; };
+  addEventListener('touchstart', e => { el = null; drag = false; dx = 0; if (document.documentElement.dir !== 'rtl' || e.touches.length !== 1) return;
+    const tt = e.touches[0]; if (tt.clientX < innerWidth - 28) return; el = layer(); x0 = tt.clientX; y0 = tt.clientY; }, { passive: true });
+  addEventListener('touchmove', e => { if (!el) return; const tt = e.touches[0], mx = tt.clientX - x0, my = tt.clientY - y0;
+    if (!drag) { if (Math.abs(my) > 14 && Math.abs(my) > Math.abs(mx)) { el = null; return; } if (mx > -8) return; drag = true; el.style.transition = 'none'; }
+    dx = Math.min(0, mx); el.style.setProperty('transform', `translateX(${dx}px)`, 'important'); }, { passive: true });
+  const end = () => { if (!el) return; const t0 = el; el = null; t0.style.transition = ''; t0.style.removeProperty('transform'); if (drag && dx < -Math.min(110, innerWidth * .28)) history.back(); drag = false; };
+  addEventListener('touchend', end, { passive: true }); addEventListener('touchcancel', end, { passive: true });
+})();
