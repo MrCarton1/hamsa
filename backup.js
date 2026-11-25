@@ -143,7 +143,10 @@ async function bkSweep() {
   } catch (x) { console.warn('[hamsa] backup sweep', x); }
   finally { BK.sweeping = false; bkProgress(); }
 }
-function bkProgress() { const n = $('#bkProg'); if (!n) return; n.hidden = !BK.sweeping; n.textContent = t('bkSaving', { n: BK.swept }); }
+function bkProgress() {   // on the Backup page: "saving… 120" while it works, then "all your messages are saved ✅"
+  const n = $('#bkProg'); if (!n) return; let done = false; try { done = !!(BK.id && myDev && localStorage.getItem('hamsa-bk-swept') === BK.id + ':' + myDev.id); } catch {}
+  n.hidden = !BK.sweeping && !done; n.className = BK.sweeping ? 'muted small' : 'bk-done'; n.textContent = BK.sweeping ? t('bkSaving', { n: BK.swept }) : done ? t('bkAllSaved') : '';
+}
 
 // ---- after signing in: offer to restore (new phone) or to make a backup (nobody has one yet) ----
 async function bkStart() {
@@ -152,6 +155,8 @@ async function bkStart() {
   const later = k => { try { return Date.now() - (+localStorage.getItem(k) || 0) < 3 * 864e5; } catch { return false; } };
   if (row && BK.priv) return setTimeout(bkSweep, 5000);
   if (row && !BK.priv) { setTimeout(bkSweep, 5000); if (!later('hamsa-bk-later')) setTimeout(() => bkAsk(), 1200); return; }
+  let seen = true; try { seen = !!localStorage.getItem('hamsa-guide-seen'); } catch {}
+  if (!row && BK.checked && !seen) return setTimeout(() => { if (me && !BK.row) bkGuide(); }, 3500);   // first time: the short video
   if (!row && BK.checked && !later('hamsa-bk-nudge')) setTimeout(() => { if (me && !BK.row && !$('#dlg').open) bkNudge(); }, 25000);
 }
 function bkAsk() {   // "you have a backup: type its password to bring your old messages back"
@@ -163,6 +168,17 @@ function bkAsk() {   // "you have a backup: type its password to bring your old 
     e.preventDefault(); const p = $('#bkAskPass').value, b = $('#bkAskBtn'); if (!p) return; b.disabled = true; b.textContent = t('bkWait'); $('#bkAskMsg').textContent = '';
     try { await bkRestore(p); $('#dlg').close('done'); toast(t('bkRestored')); } catch (x) { $('#bkAskMsg').textContent = x.wrong ? t('bkWrong') : errText(x); b.disabled = false; b.textContent = t('bkRestore'); }
   });
+}
+// the update video, shown once to people who have no backup yet
+function bkGuide() {
+  if ($('#gv') || !$('#app') || $('#app').hidden) return; try { localStorage.setItem('hamsa-guide-seen', Date.now()); } catch {}
+  const w = document.createElement('div'); w.id = 'gv'; w.className = 'gv';
+  w.innerHTML = `<div class="gv-card"><button class="gv-x" data-gv="x" aria-label="${esc(t('close'))}">${ic('x')}</button><b class="gv-title">${t('gvTitle')}</b>
+<video src="guide.mp4" poster="guide.jpg" playsinline controls preload="metadata"></video>
+<button class="btn primary full" data-gv="go">${ic('shield')} ${t('gvGo')}</button><button class="btn ghost full" data-gv="x">${t('later')}</button></div>`;
+  document.body.appendChild(w); requestAnimationFrame(() => w.classList.add('open'));
+  const close = () => { const v = w.querySelector('video'); v.pause(); w.classList.remove('open'); setTimeout(() => w.remove(), 200); };
+  w.onclick = e => { const b = e.target.closest('[data-gv]'); if (!b && e.target !== w) return; close(); if (b && b.dataset.gv === 'go') openSettings('backup'); };
 }
 function bkNudge() {
   dialog(`<h3>${ic('shield')} ${t('bkNudgeTitle')}</h3><p class="muted">${t('bkNudgeNote')}</p><div class="row"><button value="later" class="btn ghost">${t('later')}</button><button value="go" class="btn primary">${t('bkNudgeYes')}</button></div>`,

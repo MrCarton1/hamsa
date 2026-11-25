@@ -1,8 +1,8 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v26';
-const SHELL = ['./', './index.html', './style.css?v=410', './app.js?v=410', './calls.js?v=410', './stories.js?v=410', './backup.js?v=410', './reactions.js?v=410', './config.js?v=410', './crypto.js?v=410', './i18n.js?v=410', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v29';
+const SHELL = ['./', './index.html', './style.css?v=420', './app.js?v=420', './calls.js?v=420', './stories.js?v=420', './backup.js?v=420', './reactions.js?v=420', './config.js?v=420', './crypto.js?v=420', './i18n.js?v=420', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
@@ -11,6 +11,7 @@ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Pr
 self.addEventListener('fetch', e => {
   const req = e.request, u = new URL(req.url);
   if (req.method !== 'GET' || !(u.origin === location.origin || u.href.startsWith('https://cdn.jsdelivr.net/'))) return;
+  if (/\.mp4$/i.test(u.pathname)) return;   // videos stream straight from the site (phones ask for them in pieces)
   // newest version when the internet answers within 3 seconds, otherwise the saved copy
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(req, { ignoreSearch: req.mode === 'navigate' });

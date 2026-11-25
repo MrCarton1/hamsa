@@ -807,4 +807,17 @@ button.rx-row{cursor:pointer}
 .bk-warn{background:rgba(229,115,125,.1);color:var(--text);padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.6;margin:4px 0}
 .bk-on .st-h{color:#5BC38A}
 .st-group.pad .btn+.btn{margin-top:8px}
-dialog.sheet .sheet-opt:focus:not(:focus-visible){outline:none}
+dialog.sheet .sheet-opt:focus{outline:none}dialog.sheet .sheet-opt:focus-visible{background:var(--raised)}
+.bk-done{background:rgba(91,195,138,.12);color:var(--text);padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.6;margin:8px 0 0}
+/* the update video (once) */
+.gv{position:fixed;inset:0;z-index:21;display:grid;place-items:center;padding:16px;background:rgba(6,8,12,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;transition:opacity .2s}
+.gv.open{opacity:1}
+.gv-card{position:relative;width:min(380px,100%);max-height:100%;overflow:auto;display:grid;gap:10px;padding:16px;border-radius:20px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow)}
+.gv-title{font-size:18px;text-align:center;padding:0 34px}
+.gv video{width:100%;max-height:62vh;aspect-ratio:9/16;object-fit:contain;border-radius:14px;background:#000}
+.gv-x{position:absolute;top:10px;inset-inline-end:10px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.gv-x:hover{background:var(--raised)}
+/* group member → add as friend */
+.sheet-opt.accent,.sheet-opt.accent .ic{color:var(--lamp)}
+.sheet-opt.muted{opacity:.6}
+.pf-add .ic{width:20px;height:20px;vertical-align:-4px}

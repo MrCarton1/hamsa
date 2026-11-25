@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '4.1.0';
+const VERSION = '4.2.0';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -109,7 +109,8 @@ $('#authForm').onsubmit = async e => {
   } catch (x) { msg.textContent = [t('errName'), t('errPass8')].includes(x.message) ? x.message : errText(x); } finally { btn.disabled = false; }
 };
 
-sb.auth.onAuthStateChange((ev, session) => { accessToken = session ? session.access_token : null; setTimeout(() => session ? start(session.user) : stop(), 0); });
+const whenReady = f => document.readyState === 'loading' ? addEventListener('DOMContentLoaded', f, { once: true }) : setTimeout(f, 0);   // calls.js, stories.js… must be loaded first
+sb.auth.onAuthStateChange((ev, session) => { accessToken = session ? session.access_token : null; whenReady(() => session ? start(session.user) : stop()); });
 let starting = false;
 async function start(user) {
   if (me && me.id === user.id) return; if (starting) { start.next = user; return; } starting = true;
@@ -247,6 +248,19 @@ async function addFriend() {
   else { const { data: fr, error } = await sb.from('friendships').insert({ addressee: p.id }).select('id').single(); if (error) return msg.textContent = errText(error); msg.textContent = t('sentReq', { n: p.display_name });
     sb.functions.invoke('push', { body: { friend: fr.id } }).catch(() => {}); }
   $('#pfUser').value = ''; loadFriends();
+}
+// friends from a group: where I stand with someone, and asking them (or accepting their request) right there
+function friendState(uid) {
+  const f = friends.find(x => (x.requester === uid && x.addressee === me.id) || (x.requester === me.id && x.addressee === uid));
+  return !f ? { s: 'none' } : f.status === 'accepted' ? { s: 'friend', f } : f.requester === me.id ? { s: 'sent', f } : { s: 'got', f };
+}
+async function befriend(uid) {
+  const st = friendState(uid);
+  if (st.s === 'friend') return toast(t('alreadyFriend')); if (st.s === 'sent') return toast(t('alreadyAsked'));
+  if (st.s === 'got') { const { error } = await sb.rpc('respond_friend', { fid: st.f.id, accept: true }); if (error) return toast(errText(error)); toast(t('theyAsked')); sb.functions.invoke('push', { body: { friend: st.f.id } }).catch(() => {}); }
+  else { const { data: fr, error } = await sb.from('friendships').insert({ addressee: uid }).select('id').single(); if (error) return toast(errText(error));
+    toast(t('sentReq', { n: nameOf(uid) })); sb.functions.invoke('push', { body: { friend: fr.id } }).catch(() => {}); }
+  await loadFriends(); const top = stPages[stPages.length - 1]; if (top === 'user:' + uid) renderSettings(top);
 }
 async function friendAction(b) {
   if (b.dataset.acc) { await sb.rpc('respond_friend', { fid: +b.dataset.acc, accept: true }); sb.functions.invoke('push', { body: { friend: +b.dataset.acc } }).catch(() => {}); }
@@ -419,13 +433,18 @@ function openPhotoUrl(u) { dialog(`<img src="${esc(u)}" alt="" class="gbig"><div
 // tapping a member: a small menu from the bottom, like WhatsApp
 function memberMenu(c, uid) {
   const mine = roleOf(c, me.id), his = roleOf(c, uid), n = nameOf(uid), opts = [`<button value="profile" class="sheet-opt">${ic('user')}<span>${gt('viewProfile')}</span></button>`];
-  if (friends.some(f => f.status === 'accepted' && (f.requester === uid || f.addressee === uid))) opts.push(`<button value="msg" class="sheet-opt">${ic('chat')}<span>${gt('msgPrivate', { n })}</span></button>`);
+  const fs_ = friendState(uid).s;
+  if (fs_ === 'friend') opts.push(`<button value="msg" class="sheet-opt">${ic('chat')}<span>${gt('msgPrivate', { n })}</span></button>`);
+  else if (fs_ === 'got') opts.push(`<button value="befriend" class="sheet-opt accent">${ic('userPlus')}<span>${t('frAccept', { n })}</span></button>`);
+  else if (fs_ === 'sent') opts.push(`<button value="" class="sheet-opt muted" disabled>${ic('check')}<span>${t('frSent')}</span></button>`);
+  else opts.push(`<button value="befriend" class="sheet-opt accent">${ic('userPlus')}<span>${t('frAdd', { n })}</span></button>`);
   if (mine === 'owner') opts.push(`<button value="${his === 'admin' ? 'unlead' : 'lead'}" class="sheet-opt">${ic('shield')}<span>${gt(his === 'admin' ? 'unLeader' : 'makeLeader')}</span></button>`, `<button value="own" class="sheet-opt">${ic('crown')}<span>${gt('makeOwner')}</span></button>`);
   if (his !== 'owner' && (mine === 'owner' || (mine === 'admin' && his === 'member'))) opts.push(`<button value="kick" class="sheet-opt danger">${ic('trash')}<span>${gt('kick')}</span></button>`);
   dialog(`<div class="sheet-head">${avatarHtml(uid, { cls: 'sm' })}<b>${esc(n)}</b>${his !== 'member' ? `<span class="gbadge${his === 'owner' ? ' own' : ''}">${gt(his === 'owner' ? 'owner' : 'leader')}</span>` : ''}</div>${opts.join('')}`, async v => {
     let r = null;
     if (v === 'profile') return openSettings('user:' + uid);
     if (v === 'msg') { const id = await dmWith(uid); return id && goChat(id); }
+    if (v === 'befriend') return befriend(uid);
     if (v === 'lead' || v === 'unlead') r = await sb.rpc('group_set_admin', { c: c.id, uid, make: v === 'lead' });
     else if (v === 'own') { if (!confirm(gt('ownerSure', { n }))) return; r = await sb.rpc('group_transfer', { c: c.id, uid }); }
     else if (v === 'kick') { if (!confirm(gt('kickSure', { n }))) return; r = await sb.rpc('group_remove', { c: c.id, uid }); devsByConv.delete(c.id); }
@@ -1114,7 +1133,8 @@ async function renderProfile(b, id) {
   const draw = () => { const p = profiles.get(id) || {}, mine = id === me.id, fr = friends.find(f => f.status === 'accepted' && (f.requester === id || f.addressee === id)), hasSt = (stories.get(id) || []).length;
     b.innerHTML = `<div class="pf-head"><button class="pf-photo" data-photo="${id}">${avatarHtml(id, { cls: 'xxl' })}</button><h2>${esc(nameOf(id))}</h2>
 ${nicks.has(id) ? `<small>${t('realName')}: ${esc(p.display_name || '')}</small>` : ''}<small dir="ltr">@${esc(p.username || '')}</small></div>
-${mine ? `<div class="st-group">${row('profile', 'edit', t('editProfile'))}</div>` : `<div class="pf-actions"><button data-pf="msg" data-id="${id}">${ic('chat')}<span>${t('message')}</span></button><button data-pf="voice" data-id="${id}">${ic('phone')}<span>${t('voiceCall')}</span></button><button data-pf="video" data-id="${id}">${ic('video')}<span>${t('videoCall')}</span></button></div>
+${mine ? `<div class="st-group">${row('profile', 'edit', t('editProfile'))}</div>` : !fr ? (() => { const s = friendState(id).s;
+  return `<div class="st-group pad">${s === 'sent' ? `<button class="btn ghost full" disabled>${ic('check')} ${t('frSent')}</button>` : `<button class="btn primary full pf-add" data-pf="befriend" data-id="${id}">${ic('userPlus')} ${s === 'got' ? t('frAccept', { n: esc(nameOf(id)) }) : t('frAdd', { n: esc(nameOf(id)) })}</button>`}<p class="muted small" style="margin:8px 0 0;text-align:center">${t('frNote')}</p></div>`; })() : `<div class="pf-actions"><button data-pf="msg" data-id="${id}">${ic('chat')}<span>${t('message')}</span></button><button data-pf="voice" data-id="${id}">${ic('phone')}<span>${t('voiceCall')}</span></button><button data-pf="video" data-id="${id}">${ic('video')}<span>${t('videoCall')}</span></button></div>
 <div class="st-group"><button class="st-row" data-pf="nick" data-id="${id}"><span class="st-ic">${ic('edit')}</span><span class="st-label">${t('renameHere')}</span><span class="st-val">${nicks.has(id) ? esc(nicks.get(id)) : ''}</span>${ic('fwd', 'chev')}</button>
 ${hasSt ? `<button class="st-row" data-pf="status" data-id="${id}"><span class="st-ic">${ic('status')}</span><span class="st-label">${t('viewStatus')}</span>${ic('fwd', 'chev')}</button>` : ''}
 ${fr ? `<button class="st-row danger" data-pf="unfriend" data-id="${fr.id}"><span class="st-ic">${ic('trash')}</span><span class="st-label">${t('removeFriend')}</span></button>` : ''}</div>`}`; };
@@ -1122,6 +1142,7 @@ ${fr ? `<button class="st-row danger" data-pf="unfriend" data-id="${fr.id}"><spa
 }
 async function dmWith(id) { const c = convs.find(x => !x.is_group && otherOf(x) === id); if (c) return c.id; const { data, error } = await sb.rpc('start_dm', { other: id }); if (error) { toast(errText(error)); return null; } await loadChats(); return data; }
 async function profileAction(a, id) {
+  if (a === 'befriend') return befriend(id);
   if (a === 'nick') return rename(id);
   if (a === 'status') return openStory(id);
   if (a === 'unfriend') { if (!confirm(t('sure'))) return; await sb.from('friendships').delete().eq('id', +id); await loadFriends(); return history.back(); }
