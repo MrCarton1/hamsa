@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=430">
+<link rel="stylesheet" href="style.css?v=431">
 </head>
 <body>
 <!-- first time: choose a language (shown in English) -->
@@ -56,7 +56,6 @@
       <div class="icons">
         <button id="installBtn" data-ic="install" data-ttl="installApp" hidden></button>
         <button id="peopleBtn" class="plus" data-ic="userPlus" data-ttl="addFriends"><span id="reqCount" class="dot-pill" hidden></span></button>
-        <button id="settingsBtn" class="me" data-ttl="settings"><span id="meAvatar" class="av"></span></button>
       </div>
     </header>
     <div id="pushBar" class="pushbar" hidden><span data-t="pushBar"></span><button id="pushYes" class="btn small primary" data-t="turnOn"></button><button id="pushNo" class="btn small ghost" data-t="later"></button></div>
@@ -68,6 +67,7 @@
     <nav class="tabbar">
       <button type="button" data-tab="chats" class="on"><span class="tb-ic" data-ic="chat"><span id="unreadAll" class="tb-badge" hidden></span></span><b data-t="chatsGroup"></b></button>
       <button type="button" data-tab="stories"><span class="tb-ic" data-ic="status"><i id="stDot" class="tb-dot" hidden></i></span><b data-t="statuses"></b></button>
+      <button type="button" id="settingsBtn" class="tb-me"><span class="tb-ic"><span id="meAvatar" class="av"></span></span><b data-t="meTab"></b></button>
     </nav>
   </aside>
 
@@ -144,13 +144,13 @@
 <div id="updBar" class="updbar" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=430"></script>
-<script src="i18n.js?v=430"></script>
-<script src="crypto.js?v=430"></script>
-<script src="app.js?v=430"></script>
-<script src="calls.js?v=430"></script>
-<script src="stories.js?v=430"></script>
-<script src="backup.js?v=430"></script>
-<script src="reactions.js?v=430"></script>
+<script src="config.js?v=431"></script>
+<script src="i18n.js?v=431"></script>
+<script src="crypto.js?v=431"></script>
+<script src="app.js?v=431"></script>
+<script src="calls.js?v=431"></script>
+<script src="stories.js?v=431"></script>
+<script src="backup.js?v=431"></script>
+<script src="reactions.js?v=431"></script>
 </body>
 </html>
