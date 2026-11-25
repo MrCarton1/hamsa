@@ -703,3 +703,14 @@ dialog.sheet{margin:auto auto 0;width:min(520px,100%);max-width:100%;border-radi
 @media (min-width:761px){.sm-stage{max-width:460px;margin:0 auto;inset-inline:0}.sm-bot{max-width:460px;margin:0 auto}}
 @media (prefers-reduced-motion:reduce){.smake{transition:none}}
 .sm-media.fill{object-fit:cover}
+
+/* ===== v3.8: a slimmer bottom bar ===== */
+.tabbar{padding:4px 24px max(4px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
+.tabbar button{flex-direction:row;justify-content:center;gap:7px;padding:0;min-height:44px;font-size:13px;color:var(--muted)}
+.tb-ic{width:auto;height:auto;border-radius:0;background:none!important;padding:0}
+.tb-ic .ic{width:21px;height:21px}
+.tabbar .on{color:var(--lamp)}
+.tabbar .on b{color:var(--text)}
+.tabbar button b{font-weight:600}
+.tb-badge{top:-7px;inset-inline-end:auto;inset-inline-start:-10px;min-width:16px;height:16px;line-height:16px;font-size:10px;padding:0 4px}
+.tb-dot{top:-2px;inset-inline-end:auto;inset-inline-start:-3px;width:8px;height:8px}
