@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.5.0';
+const VERSION = '4.1.0';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -124,7 +124,7 @@ async function start(user) {
     await Promise.all([loadChats(), loadFriends(), loadPrefs()]); await live(); inbox(); if (window.loadIce) loadIce(); syncClock(); viewing(false); delivered(); loadStatuses(); checkRinging();
     const qs = new URLSearchParams(location.search), want = qs.get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
     if (qs.get('people')) openSettings('people');
-    pushStart();
+    pushStart(); if (window.bkStart) bkStart().catch(x => console.warn('[hamsa] backup', x));
   } finally { starting = false; const n = start.next; start.next = null; if (n && (!me || me.id !== n.id)) start(n); }
 }
 function stop() {
@@ -160,7 +160,9 @@ async function reveal(m) {
   if (!m || m.deleted) return { text: '' };
   if (m.enc !== 1) return { text: m.body || '', old: true };
   const key = m.id + ':' + m.iv; if (plain.has(key)) return plain.get(key);
-  let out; try { const r = await HC.open(m, myDev, await senderPub(m)); out = { text: r.payload.t || '', payload: r.payload, K: r.K }; } catch { out = { text: '', fail: true }; }
+  let out; try { const r = await HC.open(m, myDev, await senderPub(m)); out = { text: r.payload.t || '', payload: r.payload, K: r.K }; if (window.bkShelve) bkShelve(m, r.K); }
+  catch { try { const r = window.bkOpen ? await bkOpen(m) : null; if (r) out = { text: r.payload.t || '', payload: r.payload, K: r.K }; } catch {} }   // this phone's key cannot: try the backup
+  if (!out) out = { text: '', fail: true };
   plain.set(key, out); return out;
 }
 
@@ -269,7 +271,7 @@ $('#infoBtn').onclick = async () => {
   if (!current) return; if (current.is_group) return groupInfo(convs.find(x => x.id === current.id) || current); const c = current, ms = members.get(c.id) || [], admin = ms.some(m => m.user_id === me.id && m.role === 'admin');
   const addable = friends.filter(f => f.status === 'accepted').map(f => f.requester === me.id ? f.addressee : f.requester).filter(id => !ms.some(m => m.user_id === id));
   let safety = '';
-  if (!c.is_group) { const other = otherOf(c), devs = (await devicesFor(c.id, true)); const mine = devs.filter(d => d.user_id === me.id).map(d => d.pub), theirs = devs.filter(d => d.user_id === other).map(d => d.pub);
+  if (!c.is_group) { const other = otherOf(c), devs = (await devicesFor(c.id, true)); const phone = d => !String(d.device_id).startsWith('bk'), mine = devs.filter(d => d.user_id === me.id && phone(d)).map(d => d.pub), theirs = devs.filter(d => d.user_id === other && phone(d)).map(d => d.pub);   // the backup key is not a phone
     if (mine.length && theirs.length) safety = `<div class="safety"><div class="sec flush">${ic('shield')} ${t('safety')}</div><div class="code" dir="ltr">${await HC.safety([...mine, ...theirs])}</div><p class="muted small">${t('safetyNote')}</p></div>`; }
   dialog(`<div class="info-head">${avatarHtml(c.is_group ? c.id : otherOf(c), { group: c.is_group, cls: 'xl' })}<h3>${esc(convTitle(c))}</h3></div>
 <div class="sec flush">${t('members')}</div><div class="scroll">${ms.map(m => `<div class="frow flush${m.user_id !== me.id ? ' pf-open' : ''}" data-uopen="${m.user_id}">${avatarHtml(m.user_id, { cls: 'sm' })}<div class="mid"><b>${esc(nameOf(m.user_id))}${m.user_id === me.id ? ' · ' + t('you') : ''}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username)}${m.role === 'admin' ? ' · ' + t('admin') : ''}</small></div></div>`).join('')}</div>
@@ -437,15 +439,16 @@ function memberMenu(c, uid) {
 async function openChat(id, quiet) {
   const c = convs.find(x => x.id === id); if (!c) return;
   if (!quiet && (!current || current.id !== id)) { if (history.state && history.state.v === 'chat') history.replaceState({ v: 'chat' }, ''); else history.pushState({ v: 'chat' }, ''); }
-  current = c; c.unread = 0; replyTo = null; $('#stkPanel').hidden = true; $('#stkBtn').classList.remove('on'); $('#replyBox').hidden = true; msgsById.clear(); typers.clear(); joinTyping(c.id);
+  current = c; c.unread = 0; replyTo = null; if (editing) { editing = null; ta.value = ''; ta.oninput(); } $('#replyBox').classList.remove('editing'); $('#stkPanel').hidden = true; $('#stkBtn').classList.remove('on'); $('#replyBox').hidden = true; msgsById.clear(); typers.clear(); joinTyping(c.id);
   $('#empty').hidden = true; $('#room').hidden = false; $('#app').classList.add('open');
   $('#voiceBtn').hidden = $('#videoBtn').hidden = !!c.is_group; lockComposer();
   $('#roomName').textContent = convTitle(c); avatarInto($('#roomAv'), c.is_group ? c.id : otherOf(c), c.is_group); $('#roomSub').textContent = subtitle(c); $('#roomSub').className = ''; updateStatus();
   renderChats(); $('#msgs').innerHTML = `<div class="day">${t('loading')}</div>`; devicesFor(c.id);
   const { data, error } = await sb.from('messages').select('*').eq('conversation_id', id).order('id', { ascending: false }).limit(150);
   if (current !== c) return; if (error) { $('#msgs').innerHTML = ''; return toast(errText(error)); }
-  const rows = (data || []).reverse(); await Promise.all(rows.map(reveal)); if (current !== c) return;
+  const rows = (data || []).reverse(); if (window.bkPrefetch) await bkPrefetch(rows).catch(() => {}); await Promise.all(rows.map(reveal)); if (current !== c) return;
   $('#msgs').innerHTML = ''; addMsg.bulk = true; rows.forEach(addMsg); addMsg.bulk = false; note(); scrollDown(); markRead(); viewing(true);
+  if (window.rxLoad) rxLoad(c.id, rows).catch(() => {});
   if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) $('#text').focus();
 }
 function closeChat(fromHistory) {
@@ -474,14 +477,14 @@ function msgHtml(m) {
   const qr = q && (plain.get(q.id + ':' + q.iv) || (q.enc !== 1 ? { text: q.body } : { fail: true }));
   const state = !mine || m.deleted ? '' : m.pending === 1 ? `<span class="trail s0" title="${t('sending')}"><i></i><i></i><i></i></span>` : m.pending === 2 ? `<span class="failed">${t('notSentTap')}</span>` : trail(m, current.id);
   const stkBtn = m.kind === 'sticker' ? `<button data-act="savestk" title="${t('saveSticker')}">${ic('save')}</button>` : m.kind === 'image' && m.enc === 1 ? `<button data-act="mkstk" title="${t('makeSticker')}">${ic('smile')}</button>` : '';
-  const tools = m.deleted || r.fail || m.pending ? '' : `<div class="tools"><button data-act="reply" title="${t('reply')}">${ic('reply')}</button>${mine && m.kind === 'text' ? `<button data-act="edit" title="${t('edit')}">${ic('edit')}</button>` : ''}${stkBtn}${m.expires_at && m.id > 0 ? `<button data-act="keep" title="${t(m.kept ? 'unkeep' : 'keep')}">${ic(m.kept ? 'kept' : 'save', m.kept ? 'fill' : '')}</button>` : ''}${mine ? `<button data-act="del" title="${t('del')}">${ic('trash')}</button>` : ''}${m.kind === 'text' ? `<button data-act="copy" title="${t('copy')}">${ic('copy')}</button>` : ''}</div>`;
+  const tools = m.deleted || r.fail || m.pending ? '' : `<div class="tools">${m.id > 0 && !r.fail && window.openMsgMenu ? `<button data-act="react" title="${t('rxReact')}">${ic('smile')}</button>` : ''}<button data-act="reply" title="${t('reply')}">${ic('reply')}</button>${mine && m.kind === 'text' ? `<button data-act="edit" title="${t('edit')}">${ic('edit')}</button>` : ''}${stkBtn}${m.expires_at && m.id > 0 ? `<button data-act="keep" title="${t(m.kept ? 'unkeep' : 'keep')}">${ic(m.kept ? 'kept' : 'save', m.kept ? 'fill' : '')}</button>` : ''}${mine ? `<button data-act="del" title="${t('del')}">${ic('trash')}</button>` : ''}${m.kind === 'text' ? `<button data-act="copy" title="${t('copy')}">${ic('copy')}</button>` : ''}</div>`;
   return `${current.is_group && !mine ? `<div class="who" style="color:${colorOf(m.sender_id)}">${esc(nameOf(m.sender_id))}</div>` : ''}
 ${q ? `<div class="q" data-jump="${q.id}"><b>${esc(q.sender_id === me.id ? t('you') : nameOf(q.sender_id))}</b> ${esc(q.deleted ? t('deletedMsg') : preview(q, qr))}</div>` : ''}
-<div class="body">${body}</div><div class="meta">${r.old && !m.deleted ? `<span class="old">${t('oldMsg')}</span>` : ''}${m.edited_at && !m.deleted ? `<span>${t('edited')}</span>` : ''}${m.expires_at && !m.deleted ? (m.kept ? `<span class="kmark" title="${esc(t('keptBy', { n: m.kept_by === me.id ? t('you') : nameOf(m.kept_by) }))}">${ic('kept', 'tiny fill')}</span>` : `<span class="tmark" title="${t('disappears')}">${ic('timer', 'tiny')}</span>`) : ''}<span>${fmtTime(m.created_at)}</span>${state}</div>
+<div class="body">${body}</div>${window.rxHtml ? rxHtml(m) : ''}<div class="meta">${r.old && !m.deleted ? `<span class="old">${t('oldMsg')}</span>` : ''}${m.edited_at && !m.deleted ? `<span>${t('edited')}</span>` : ''}${m.expires_at && !m.deleted ? (m.kept ? `<span class="kmark" title="${esc(t('keptBy', { n: m.kept_by === me.id ? t('you') : nameOf(m.kept_by) }))}">${ic('kept', 'tiny fill')}</span>` : `<span class="tmark" title="${t('disappears')}">${ic('timer', 'tiny')}</span>`) : ''}<span>${fmtTime(m.created_at)}</span>${state}</div>
 ${tools}`;
 }
 function paintMsg(el, m) {
-  el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : '') + (m.pending ? ' pend' + m.pending : '') + (!m.deleted && m.kind === 'sticker' ? ' stkmsg' : '') + (!m.deleted && m.kind === 'voice' ? ' vmsg' : '');
+  el.className = 'm' + (m.sender_id === me.id ? ' mine' : '') + (m.deleted ? ' del' : '') + (m.pending ? ' pend' + m.pending : '') + (!m.deleted && m.kind === 'sticker' ? ' stkmsg' : '') + (!m.deleted && m.kind === 'voice' ? ' vmsg' : '') + (!m.deleted && typeof RX !== 'undefined' && RX.get(m.id) && RX.get(m.id).size ? ' has-rx' : '');
   el.innerHTML = msgHtml(m); loadMedia(el); if (m.id === playing) paintPlayer();
 }
 const gone = m => m.expires_at && !m.kept && new Date(m.expires_at).getTime() < srvNow();
@@ -524,15 +527,22 @@ $('#msgs').onclick = async e => {
 async function msgAct(a, m, el) {
   const r = plain.get(m.id + ':' + m.iv), text = r ? r.text : (m.body || '');
   if (a === 'info') return openSettings('minfo:' + m.id);
-  if (a === 'reply') { replyTo = m; $('#replyText').textContent = (m.sender_id === me.id ? t('you') : nameOf(m.sender_id)) + ': ' + preview(m, r); $('#replyBox').hidden = false; $('#text').focus(); }
+  if (a === 'react') { el && el.classList.remove('show'); return window.openMsgMenu && openMsgMenu(el); }
+  if (a === 'reply') { endEdit(); $('#replyBox').classList.remove('editing'); $('#replyBox').querySelector('b').textContent = t('replyTo'); replyTo = m; $('#replyText').textContent = (m.sender_id === me.id ? t('you') : nameOf(m.sender_id)) + ': ' + preview(m, r); $('#replyBox').hidden = false; $('#text').focus(); }
   if (a === 'copy') { try { await navigator.clipboard.writeText(text); toast(t('copied')); } catch {} }
-  if (a === 'edit') { const n = prompt(t('editTitle'), text); if (n == null || !n.trim() || n === text) return; await editMsg(m, n.trim()); }
+  if (a === 'edit') { replyTo = null; editing = m; const box = $('#replyBox'); box.classList.add('editing'); box.querySelector('b').textContent = t('edEditing'); $('#replyText').textContent = text; box.hidden = false;
+    ta.value = text; ta.oninput(); ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch {} return; }
   if (a === 'keep') { el && el.classList.remove('show'); const { error } = await sb.rpc('keep_message', { mid: m.id, keep: !m.kept }); if (error) return toast(errText(error)); return toast(t(m.kept ? 'unkeptMsg' : 'keptMsg')); }
   if (a === 'savestk' || a === 'mkstk') { const bl = blobCache.get(m.media_path); if (!bl) return toast(t('cantOpen')); el && el.classList.remove('show');
     return a === 'savestk' ? addSticker(bl, (r && r.payload && r.payload.sh)).catch(x => toast(errText(x))) : stickerMaker(bl); }
-  if (a === 'del') { if (!confirm(t('delSure'))) return; const { error } = await sb.from('messages').update({ deleted: true }).eq('id', m.id); if (error) toast(errText(error)); }
+  if (a === 'del') {
+    dialog(`<h3>${t('dlTitle')}</h3><p class="muted">${t('dlNote')}</p><div class="row"><button value="" class="btn ghost">${t('cancel')}</button><button value="ok" class="btn danger-solid">${t('del')}</button></div>`,
+      async v => { if (v !== 'ok') return; const { error } = await sb.from('messages').update({ deleted: true }).eq('id', m.id); if (error) toast(errText(error)); });
+  }
 }
-$('#replyX').onclick = () => { replyTo = null; $('#replyBox').hidden = true; };
+let editing = null;   // the message being edited in the composer
+function endEdit() { if (!editing) return; editing = null; $('#replyBox').classList.remove('editing'); $('#replyBox').querySelector('b').textContent = t('replyTo'); $('#replyBox').hidden = true; ta.value = ''; ta.oninput(); }
+$('#replyX').onclick = () => { if (editing) return endEdit(); replyTo = null; $('#replyBox').hidden = true; };
 
 // ---------- sending (everything is encrypted before it leaves the phone) ----------
 const ta = $('#text');
@@ -589,7 +599,8 @@ async function editMsg(m, text) {
   const { error } = await sb.from('messages').update({ ct: box.ct, iv: box.iv, keys: box.keys, edited_at: new Date().toISOString() }).eq('id', m.id);
   if (error) return toast(errText(error)); plain.set(m.id + ':' + box.iv, { text, payload: { ...(old.payload || {}), t: text } });
 }
-$('#composer').onsubmit = e => { e.preventDefault(); const s = ta.value.trim(); if (!s) return; stopTyping(); ta.value = ''; ta.oninput(); send({ text: s }); if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) ta.focus(); };
+$('#composer').onsubmit = e => { e.preventDefault(); const s = ta.value.trim(); if (!s) return;
+  if (editing) { const m = editing, old = (plain.get(m.id + ':' + m.iv) || {}).text; endEdit(); if (s !== old) editMsg(m, s).catch(x => toast(errText(x))); return; } stopTyping(); ta.value = ''; ta.oninput(); send({ text: s }); if (!/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) ta.focus(); };
 function updateComposer() { const has = !!ta.value.trim(); $('#sendBtn').hidden = !has; $('#micBtn').hidden = has && !R.on; }
 ta.addEventListener('focus', () => { if (!$('#stkPanel').hidden) { $('#stkPanel').hidden = true; $('#stkBtn').classList.remove('on'); } });
 $('#attachBtn').onclick = () => $('#fileIn').click();
@@ -700,7 +711,8 @@ function loadStickers() {
   return stkLoading = (async () => {
     const [{ data }, devs] = await Promise.all([sb.from('stickers').select('*').order('id', { ascending: false }), myDevices()]);
     const got = await Promise.all((data || []).map(async s => { try {
-      const r = await HC.open(s, myDev, await senderPub({ sender_device: s.sender_device, sender_id: me.id }));
+      const spub = await senderPub({ sender_device: s.sender_device, sender_id: me.id });
+      const r = await HC.open(s, myDev, spub).catch(async x => { const b = window.bkOpenRow ? await bkOpenRow(s, spub).catch(() => null) : null; if (b) return b; throw x; });
       const { data: f, error } = await sb.storage.from('stickers').download(s.path); if (error) return null;
       const blob = new Blob([await HC.openBytes(r.K, r.payload.mi, new Uint8Array(await f.arrayBuffer()))], { type: r.payload.mt || 'image/png' });
       if (devs.some(d => !s.keys[d.device_id])) { const box = await HC.seal(r.payload, myDev, devs, r.K);   // let my other phones open it too
@@ -794,6 +806,7 @@ async function inbox() {
     .on('broadcast', { event: 'msg' }, ({ payload }) => onNewMsg(payload))
     .on('broadcast', { event: 'conv' }, () => convChanged())
     .on('broadcast', { event: 'rcpt' }, ({ payload }) => onReceipt(payload))
+    .on('broadcast', { event: 'react' }, ({ payload }) => window.rxOn && rxOn(payload))
     .on('broadcast', { event: 'call' }, ({ payload }) => payload && payload.row && onCallRow(payload.row, payload.ev))
     .subscribe();
 }
@@ -944,7 +957,7 @@ async function renderSettings(page) {
   $('#stTitle').textContent = t(title); b.className = 'st-body page-in'; void b.offsetWidth; b.classList.add('go');
   const notifOn = pushOK() && Notification.permission === 'granted';
   if (page === 'main') b.innerHTML = `<button class="st-me" data-page="profile">${avatarHtml(me.id, { cls: 'xl' })}<span><b>${esc(me.display_name)}</b><small dir="ltr">@${esc(me.username)}</small></span>${ic('fwd', 'chev')}</button>
-<div class="st-group">${row('account', 'key', t('account'))}${row('privacy', 'lock', t('privacy'))}${row('notif', 'bell', t('notifications'), notifOn ? '✓' : '')}</div>
+<div class="st-group">${row('account', 'key', t('account'))}${row('privacy', 'lock', t('privacy'))}${row('notif', 'bell', t('notifications'), notifOn ? '✓' : '')}${window.bkPage ? row('backup', 'shield', t('bkTitle'), typeof BK !== 'undefined' && BK.row ? '✓' : '') : ''}</div>
 <div class="st-group">${row('timer', 'timer', t('timerTitle'), timerLabel(prefs.msg_timer))}${row('statusdur', 'status', t('statusDur'), hoursLabel(prefs.status_hours))}</div>
 <div class="st-group">${row('look', 'palette', t('appearance'), t(theme))}${row('lang', 'globe', t('language'), L().langName)}</div>
 <div class="st-group">${row('about', 'info', t('about'), 'v' + VERSION)}</div>
@@ -968,6 +981,7 @@ async function renderSettings(page) {
   if (page === 'statusdur') b.innerHTML = `<p class="st-note">${t('statusDurNote')}</p><div class="st-group">${SHOURS.map(([v, k]) => radio('sdur', v, t(k), prefs.status_hours === v)).join('')}</div>`;
   if (page.startsWith('user:')) renderProfile(b, page.slice(5));
   if (page === 'pushdiag') renderPushDiag(b);
+  if (page === 'backup' && window.bkPage) bkPage(b);
   if (page.startsWith('minfo:')) renderMsgInfo(b, page.slice(6));
   if (groupPage(page)) renderGroup(b, page.slice(page.indexOf(':') + 1), page.slice(0, page.indexOf(':')));
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
@@ -1019,7 +1033,7 @@ async function setPhoto(file) {
 }
 async function logout() {
   if (!confirm(t('logoutSure'))) return;
-  try { await sb.rpc('touch_presence', { c: null, on_line: false }); await disablePush(true); if (myDev) { await sb.from('device_keys').update({ revoked: true }).eq('user_id', me.id).eq('device_id', myDev.id); await HC.forget(); } } catch {}
+  try { await sb.rpc('touch_presence', { c: null, on_line: false }); await disablePush(true); if (myDev) { await sb.from('device_keys').update({ revoked: true }).eq('user_id', me.id).eq('device_id', myDev.id); await HC.forget(); await HC.forget('backup'); } } catch {}
   closeSettings(true); await sb.auth.signOut();
 }
 
@@ -1214,6 +1228,7 @@ const touchUI = matchMedia('(hover: none)').matches;
 let holdAt = 0;
 function sheetize() { const d = $('#dlg'); d.classList.add('sheet'); const off = () => { d.classList.remove('sheet'); d.onclick = null; d.removeEventListener('close', off); }; d.addEventListener('close', off); d.onclick = e => { if (e.target === d) d.close(''); }; }
 function openMsgSheet(el) {
+  if (window.openMsgMenu) return openMsgMenu(el);   // the new menu: emojis above, actions below
   const m = msgsById.get(+el.dataset.id); if (!m || m.deleted || m.pending) return; const r = plain.get(m.id + ':' + m.iv) || {}, mine = m.sender_id === me.id;
   if (navigator.vibrate) navigator.vibrate(18); holdAt = Date.now(); el.classList.add('held');
   const o = (a, icon, label, cls = '') => `<button value="${a}" class="sheet-opt ${cls}">${ic(icon)}<span>${label}</span></button>`, opts = [o('reply', 'reply', t('reply'))];

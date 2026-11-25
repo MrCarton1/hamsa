@@ -56,10 +56,12 @@
   async function sealBytes(K, bytes) { const iv = rnd(12); return { iv: b64(iv), data: new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv }, await aes(K, 'encrypt'), bytes)) }; }
   async function openBytes(K, ivB64, bytes) { return new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: ub64(ivB64) }, await aes(K, 'decrypt'), bytes)); }
   const newKey = () => rnd(32);
+  // lock an existing message key K for one more device/backup key, with the message's own iv as salt (same format as seal)
+  async function wrapFor(me, peerJwk, ivB64, K) { const wi = rnd(12), wk = await wrapKey(me.priv, peerJwk, ub64(ivB64)); return { w: b64(await S.encrypt({ name: 'AES-GCM', iv: wi }, wk, K)), i: b64(wi) }; }
   // a short "safety code" two people can compare to be sure nobody swapped keys
   async function safety(jwks) {
     const s = jwks.map(j => j.x + '.' + j.y).sort().join('|'), h = new Uint8Array(await S.digest('SHA-256', te.encode(s)));
     return Array.from(h.slice(0, 15)).map(n => String(n % 100).padStart(2, '0')).join('').match(/.{5}/g).join(' ');
   }
-  root.HC = { device, forget, current, pref, seal, open, sealBytes, openBytes, newKey, safety, b64, ub64 };
+  root.HC = { device, forget, current, pref, seal, open, sealBytes, openBytes, newKey, safety, b64, ub64, wrapFor, store: kput };
 })(self);
