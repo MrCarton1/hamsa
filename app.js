@@ -170,7 +170,7 @@ async function needProfiles(ids) {
   const { data } = await sb.from('profiles').select('*').in('id', miss); (data || []).forEach(p => profiles.set(p.id, p));
 }
 const nameOf = id => nicks.get(id) || (profiles.get(id) || {}).display_name || '…';
-const COLORS = ['#7C6CF0', '#3FA7D6', '#E0607E', '#F2A541', '#45B39D', '#B86ADF', '#5C7CFA', '#D9825B'];
+const COLORS = ['#4C5F86', '#3F6E7A', '#7A5162', '#7C6A45', '#3F6F5C', '#62557E', '#4A6491', '#7A5C46'];   // calm, grown-up face colours
 const colorOf = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 function avatarHtml(id, { group = false, cls = '' } = {}) {
   if (group) { const gc = convs.find(x => x.id === id); if (gc && gc.avatar_url) return `<span class="av ${cls}" style="background-image:url('${esc(gc.avatar_url)}')"></span>`; }

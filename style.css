@@ -714,3 +714,50 @@ dialog.sheet{margin:auto auto 0;width:min(520px,100%);max-width:100%;border-radi
 .tabbar button b{font-weight:600}
 .tb-badge{top:-7px;inset-inline-end:auto;inset-inline-start:-10px;min-width:16px;height:16px;line-height:16px;font-size:10px;padding:0 4px}
 .tb-dot{top:-2px;inset-inline-end:auto;inset-inline-start:-3px;width:8px;height:8px}
+
+/* ===== v4: a calmer, grown-up look — deep slate, one muted gold accent, your messages in deep blue ===== */
+:root{
+  --night:#0F1218; --panel:#161B23; --raised:#1F2631; --line:#262E3A;
+  --text:#E9EDF3; --muted:#8C96A6;
+  --lamp:#D6A45E; --lamp-ink:#1B1306; --lamp-soft:rgba(214,164,94,.13);
+  --mine:#2C4772; --mine-ink:#F3F6FB;
+  --danger:#E5737D; --ripple:transparent; --shadow:0 8px 28px rgba(0,0,0,.45);
+}
+:root[data-theme=light]{
+  --night:#F3F4F7; --panel:#FFFFFF; --raised:#EDEFF3; --line:#E1E4EA;
+  --text:#151A22; --muted:#667085; --lamp:#B9823A; --lamp-ink:#FFFFFF; --lamp-soft:rgba(185,130,58,.12);
+  --mine:#2F5A9E; --mine-ink:#FFFFFF; --danger:#C8424F; --ripple:transparent; --shadow:0 8px 28px rgba(16,24,40,.10);
+}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif;letter-spacing:0}
+.wordmark{font-weight:600;font-size:24px}
+/* softer corners everywhere: less "bubbly" */
+.btn{border-radius:10px}.btn.small{border-radius:8px}
+#authForm input,.add input,dialog input,.st-field input,.st-field textarea,dialog textarea{border-radius:10px}
+.search{border-radius:10px!important;min-height:40px!important}
+dialog{border-radius:16px}.st-group,.st-me,.sp-me{border-radius:14px}
+.tabs,.seg{border-radius:12px}.tabs button,.seg button{border-radius:9px}
+/* chat: plain background, tidy bubbles */
+.msgs{background:var(--night)}
+.m{border-radius:14px;border-end-start-radius:4px;padding:6px 11px 4px;box-shadow:0 1px 1px rgba(0,0,0,.18)}
+.m.mine{background:var(--mine);color:var(--mine-ink);border-end-start-radius:14px;border-end-end-radius:4px}
+.m.mine .meta{color:rgba(243,246,251,.62)}
+.trail.s3{color:var(--lamp)}.m.mine .trail{color:rgba(243,246,251,.7)}.m.mine .trail.s3{color:var(--lamp)}
+.trail.s3 i{box-shadow:none}
+.m.mine .failed{color:#FFC2C7}.m.mine .callmsg.miss .ic{color:#FFC2C7}
+.m.mine .vplay{background:var(--mine-ink);color:var(--mine)}
+.m .q{border-radius:8px;background:rgba(0,0,0,.16)}
+.day{border-radius:8px;font-weight:500}
+.mi-bubble{background:var(--mine);color:var(--mine-ink);border-radius:14px}
+.m.mine .kmark{color:var(--lamp)}
+/* composer */
+.composer textarea{border-radius:20px}
+.composer>.mic,.composer>.send{background:var(--lamp)!important;color:var(--lamp-ink)!important}
+#room>.bar .icons button{color:var(--text)}
+/* chat list */
+.list li.on{background:var(--raised)}
+.pill,.tb-badge,.dot-pill{background:var(--lamp);color:var(--lamp-ink)}
+/* stories: one quiet accent ring instead of a rainbow */
+.sp .ring.new,.story .ring.new{background:var(--lamp)}
+.sp .ring.own{background:var(--line)}
+/* settings icons */
+.st-ic{border-radius:9px}
