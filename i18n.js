@@ -1,7 +1,7 @@
 // همسة · languages. English is the default until the person picks one.
 self.I18N = {
   en: {
-    dir: 'ltr', langName: 'English',
+    replyStory: 'Send a reply…', storySent: 'Sent ✅', storyReplyTag: 'Replied to your story', dir: 'ltr', langName: 'English',
     pickTitle: 'Choose your language', pickSub: 'You can change it later in Settings.',
     tagline: 'Close words, between you and your people',
     signIn: 'Sign in', signUp: 'Create account', yourName: 'Your name (shown to people)', username: 'Username (English letters)', password: 'Password',
@@ -61,14 +61,14 @@ self.I18N = {
     off: 'Off', h1: '1 hour', h6: '6 hours', h12: '12 hours', h24: '24 hours', h48: '48 hours', d7: '7 days', d30: '30 days',
     keep: 'Keep', unkeep: 'Stop keeping', keptBy: 'Kept by {n}', keptMsg: 'Kept, it will not disappear ✅', unkeptMsg: 'It will disappear on time', disappears: 'Disappears',
     profileTitle: 'Profile', realName: 'Real name', photoLocked: '{n} keeps their photo private', photoOpen: 'Others can open my photo',
-    photoOpenNote: 'When this is off, nobody can open your photo full screen.', editProfile: 'Edit my profile', viewStatus: 'View status', chatsGroup: 'Chats',
-    statuses: 'Status', myStatus: 'My status', addStatus: 'Add a status', statusText: 'Text', statusPhoto: 'Photo', typeStatus: 'Type a status…', post: 'Share',
-    statusDur: 'Status duration', statusDurNote: 'Only your friends see your status. It disappears after this time.', seenBy: 'Seen by {n}', noViews: 'No one has seen it yet',
-    delStatus: 'Delete this status?', statusPosted: 'Status shared ✅', caption: 'Add a caption (optional)', writeSomething: 'Write something or choose a photo',
+    photoOpenNote: 'When this is off, nobody can open your photo full screen.', editProfile: 'Edit my profile', viewStatus: 'View story', chatsGroup: 'Chats',
+    statuses: 'Stories', myStatus: 'My story', addStatus: 'Add to my story', statusText: 'Text', statusPhoto: 'Photo', typeStatus: 'Type something…', post: 'Share',
+    statusDur: 'Story duration', statusDurNote: 'Only your friends see your story. It disappears after this time.', seenBy: 'Seen by {n}', noViews: 'No one has seen it yet',
+    delStatus: 'Delete this story?', statusPosted: 'Added to your story ✅', caption: 'Add a caption (optional)', writeSomething: 'Write something or choose a photo',
     pushFriendReq: 'sent you a friend request 👋', pushFriendAcc: 'accepted your friend request ✅', removeFriend: 'Remove from friends', statusVideo: 'Video', videoPrep: 'Preparing the video… {p}%', uploading: 'Uploading…', videoTooBig: 'This video is too big for this phone to send. Try a shorter one.', videoLong: 'Only the first minute will be shared', tapSound: 'Tap for sound'
   },
   ar: {
-    dir: 'rtl', langName: 'العربية',
+    replyStory: 'أرسل رد…', storySent: 'انرسل ✅', storyReplyTag: 'رد على الستوري حقك', dir: 'rtl', langName: 'العربية',
     pickTitle: 'اختر لغتك', pickSub: 'تقدر تغيّرها بعدين من الإعدادات.',
     tagline: 'كلام قريب، بينك وبين ناسك',
     signIn: 'تسجيل الدخول', signUp: 'حساب جديد', yourName: 'اسمك (يظهر للناس)', username: 'اسم المستخدم (إنجليزي)', password: 'كلمة السر',
@@ -128,14 +128,14 @@ self.I18N = {
     off: 'مقفلة', h1: 'ساعة', h6: '6 ساعات', h12: '12 ساعة', h24: '24 ساعة', h48: '48 ساعة', d7: '7 أيام', d30: '30 يوم',
     keep: 'احفظها', unkeep: 'ألغِ الحفظ', keptBy: 'حفظها {n}', keptMsg: 'انحفظت وما راح تختفي ✅', unkeptMsg: 'بتختفي في وقتها', disappears: 'تختفي',
     profileTitle: 'الملف الشخصي', realName: 'اسمه الحقيقي', photoLocked: '{n} قافل عرض صورته', photoOpen: 'الناس يقدرون يفتحون صورتي',
-    photoOpenNote: 'إذا قفلتها، محد يقدر يفتح صورتك بالشاشة الكاملة.', editProfile: 'عدّل ملفي', viewStatus: 'شوف الحالة', chatsGroup: 'المحادثات',
-    statuses: 'الحالات', myStatus: 'حالتي', addStatus: 'أضف حالة', statusText: 'كتابة', statusPhoto: 'صورة', typeStatus: 'اكتب حالتك…', post: 'نشر',
-    statusDur: 'مدة الحالة', statusDurNote: 'حالتك يشوفها أصدقاؤك بس، وتختفي بعد هالمدة.', seenBy: 'شافها {n}', noViews: 'محد شافها للحين',
-    delStatus: 'تحذف هالحالة؟', statusPosted: 'انتشرت حالتك ✅', caption: 'اكتب تعليق (اختياري)', writeSomething: 'اكتب شي أو اختر صورة',
+    photoOpenNote: 'إذا قفلتها، محد يقدر يفتح صورتك بالشاشة الكاملة.', editProfile: 'عدّل ملفي', viewStatus: 'شوف الستوري', chatsGroup: 'المحادثات',
+    statuses: 'الستوري', myStatus: 'ستوري حقي', addStatus: 'أضف ستوري', statusText: 'كتابة', statusPhoto: 'صورة', typeStatus: 'اكتب شي…', post: 'نشر',
+    statusDur: 'مدة الستوري', statusDurNote: 'الستوري حقك يشوفه أصدقاؤك بس، ويختفي بعد هالمدة.', seenBy: 'شافه {n}', noViews: 'محد شافه للحين',
+    delStatus: 'تحذف هالستوري؟', statusPosted: 'انضاف للستوري ✅', caption: 'اكتب تعليق (اختياري)', writeSomething: 'اكتب شي أو اختر صورة',
     pushFriendReq: 'أرسل لك طلب صداقة 👋', pushFriendAcc: 'قبل طلب صداقتك ✅', removeFriend: 'شيله من أصدقائي', statusVideo: 'فيديو', videoPrep: 'نجهّز الفيديو… {p}%', uploading: 'جاري الرفع…', videoTooBig: 'الفيديو كبير على هالجوال. جرّب فيديو أقصر.', videoLong: 'بتنزل أول دقيقة بس من الفيديو', tapSound: 'اضغط عشان الصوت'
   },
   nl: {
-    dir: 'ltr', langName: 'Nederlands',
+    replyStory: 'Stuur een reactie…', storySent: 'Verstuurd ✅', storyReplyTag: 'Reageerde op je story', dir: 'ltr', langName: 'Nederlands',
     pickTitle: 'Kies je taal', pickSub: 'Je kunt dit later wijzigen in Instellingen.',
     tagline: 'Dichtbij, tussen jou en je mensen',
     signIn: 'Inloggen', signUp: 'Account maken', yourName: 'Je naam (zichtbaar voor anderen)', username: 'Gebruikersnaam (Engelse letters)', password: 'Wachtwoord',
@@ -195,10 +195,10 @@ self.I18N = {
     off: 'Uit', h1: '1 uur', h6: '6 uur', h12: '12 uur', h24: '24 uur', h48: '48 uur', d7: '7 dagen', d30: '30 dagen',
     keep: 'Bewaren', unkeep: 'Niet meer bewaren', keptBy: 'Bewaard door {n}', keptMsg: 'Bewaard, het verdwijnt niet ✅', unkeptMsg: 'Het verdwijnt op tijd', disappears: 'Verdwijnt',
     profileTitle: 'Profiel', realName: 'Echte naam', photoLocked: '{n} houdt de foto privé', photoOpen: 'Anderen mogen mijn foto openen',
-    photoOpenNote: 'Als dit uit staat, kan niemand je foto op volledig scherm openen.', editProfile: 'Mijn profiel bewerken', viewStatus: 'Status bekijken', chatsGroup: 'Chats',
-    statuses: 'Status', myStatus: 'Mijn status', addStatus: 'Status toevoegen', statusText: 'Tekst', statusPhoto: 'Foto', typeStatus: 'Typ een status…', post: 'Delen',
-    statusDur: 'Duur van status', statusDurNote: 'Alleen je vrienden zien je status. Hij verdwijnt na deze tijd.', seenBy: 'Gezien door {n}', noViews: 'Nog niemand heeft hem gezien',
-    delStatus: 'Deze status verwijderen?', statusPosted: 'Status gedeeld ✅', caption: 'Bijschrift (optioneel)', writeSomething: 'Schrijf iets of kies een foto',
+    photoOpenNote: 'Als dit uit staat, kan niemand je foto op volledig scherm openen.', editProfile: 'Mijn profiel bewerken', viewStatus: 'Story bekijken', chatsGroup: 'Chats',
+    statuses: 'Stories', myStatus: 'Mijn story', addStatus: 'Toevoegen aan mijn story', statusText: 'Tekst', statusPhoto: 'Foto', typeStatus: 'Typ iets…', post: 'Delen',
+    statusDur: 'Duur van story', statusDurNote: 'Alleen je vrienden zien je story. Hij verdwijnt na deze tijd.', seenBy: 'Gezien door {n}', noViews: 'Nog niemand heeft hem gezien',
+    delStatus: 'Deze story verwijderen?', statusPosted: 'Toegevoegd aan je story ✅', caption: 'Bijschrift (optioneel)', writeSomething: 'Schrijf iets of kies een foto',
     pushFriendReq: 'heeft je een vriendschapsverzoek gestuurd 👋', pushFriendAcc: 'heeft je verzoek geaccepteerd ✅', removeFriend: 'Verwijderen uit vrienden', statusVideo: 'Video', videoPrep: 'Video voorbereiden… {p}%', uploading: 'Uploaden…', videoTooBig: 'Deze video is te groot om te versturen. Probeer een kortere.', videoLong: 'Alleen de eerste minuut wordt gedeeld', tapSound: 'Tik voor geluid'
   }
 };

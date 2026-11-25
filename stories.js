@@ -1,4 +1,4 @@
-// همسة · statuses. Text or a photo, seen only by your friends, gone after the time you chose in Settings.
+// همسة · stories (like Snapchat). Text or a photo, seen only by your friends, gone after the time you chose in Settings.
 // Each status is encrypted on the phone for the devices of your friends (and your own), like a message.
 const stories = new Map();   // user id → [rows], oldest first
 let seenSt = new Set(), stTimer = null;
@@ -137,6 +137,9 @@ async function showStory() {
   if (r.user_id === me.id) { const { data } = await sb.from('status_views').select('viewer,seen_at').eq('status_id', r.id); const v = data || [];
     $('#svFoot').innerHTML = `<button class="sv-views" data-views="${r.id}">${ic('eye')} ${v.length}</button><button class="sv-del" data-sdel="${r.id}">${ic('trash')}</button>`; SV.views = v; }
   else if (!seenSt.has(r.id)) { seenSt.add(r.id); sb.from('status_views').insert({ status_id: r.id }).then(() => {}); renderStrip(); }
+  $('#svReply').hidden = r.user_id === me.id || !!o.fail; if (r.user_id === me.id) $('#svRtext').value = '';
+  const media = body.querySelector('.sv-img'); if (media) { const fit = () => { const w = media.videoWidth || media.naturalWidth, h = media.videoHeight || media.naturalHeight; media.classList.toggle('fill', !!w && h / w > 1.25); };
+    media.addEventListener(media.tagName === 'VIDEO' ? 'loadedmetadata' : 'load', fit); fit(); }
   SV.dur = o.url ? 7000 : 5500; SV.acc = 0; SV.start = performance.now(); SV.paused = false; SV.video = null; $('#svMute').hidden = true;
   if (o.video && !o.fail) { const v = body.querySelector('video'); SV.video = v; SV.vd = o.d || 0; v.muted = !!SV.muted; v.onended = () => SV.video === v && goStory(1);
     try { await v.play(); } catch { v.muted = true; SV.muted = true; v.play().catch(() => {}); }
@@ -171,11 +174,23 @@ $('#svFoot').onclick = async e => {
     await sb.from('statuses').delete().eq('id', +d.dataset.sdel); if (r && r.media_path) sb.storage.from('status').remove([r.media_path]);
     await loadStatuses(); if ((stories.get(me.id) || []).length) { SV.i = Math.min(SV.i, stories.get(me.id).length - 1); showStory(); } else closeStory(); }
 };
-// tap the start side to go back, the end side to go forward; hold to pause
-(() => { const b = $('#svBody'); let down = 0, timer = null;
-  b.addEventListener('pointerdown', () => { down = Date.now(); timer = setTimeout(() => pauseStory(true), 180); });
-  b.addEventListener('pointerup', e => { clearTimeout(timer); const held = Date.now() - down > 250; pauseStory(false); if (held) return;
+// tap the start side to go back, the end side to go forward; hold to pause; swipe down to close (like Snapchat)
+(() => { const b = $('#svBody'), sv = $('#story'); let down = 0, timer = null, y0 = 0, x0 = 0, dy = 0, moved = false;
+  const reset = () => { sv.style.transform = ''; sv.style.transition = ''; sv.style.borderRadius = ''; };
+  b.addEventListener('pointerdown', e => { down = Date.now(); y0 = e.clientY; x0 = e.clientX; dy = 0; moved = false; timer = setTimeout(() => pauseStory(true), 180); });
+  b.addEventListener('pointermove', e => { if (!down) return; const d = e.clientY - y0;
+    if (Math.abs(d) > 10 || Math.abs(e.clientX - x0) > 10) { moved = true; clearTimeout(timer); pauseStory(true); }
+    dy = Math.max(0, d); if (dy) { sv.style.transition = 'none'; sv.style.transform = `translateY(${dy}px) scale(${1 - Math.min(dy, 400) / 2000})`; sv.style.borderRadius = '24px'; } });
+  b.addEventListener('pointerup', e => { clearTimeout(timer); const held = Date.now() - down > 250; down = 0;
+    if (moved) { if (dy > 110) { reset(); return closeStory(); } sv.style.transition = 'transform .2s'; sv.style.transform = ''; setTimeout(reset, 220); return pauseStory(false); }
+    pauseStory(false); if (held) return;
     const r = b.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, rtl = document.documentElement.dir === 'rtl', back = rtl ? x > .7 : x < .3; goStory(back ? -1 : 1); });
-  b.addEventListener('pointercancel', () => { clearTimeout(timer); pauseStory(false); });
+  b.addEventListener('pointercancel', () => { clearTimeout(timer); down = 0; reset(); pauseStory(false); });
 })();
+// reply to a friend's story: it arrives in your chat with them
+$('#svRtext').addEventListener('focus', () => pauseStory(true));
+$('#svRtext').addEventListener('blur', () => { if (!$('#story').hidden) setTimeout(() => { if (document.activeElement !== $('#svRtext')) pauseStory(false); }, 150); });
+$('#svReply').onsubmit = async e => { e.preventDefault(); const inp = $('#svRtext'), s = inp.value.trim(), uid = SV.uid; if (!s || !uid || uid === me.id) return;
+  inp.value = ''; inp.blur(); const conv = await dmWith(uid); if (!conv) return;
+  send({ text: `📸 ${t('storyReplyTag')}\n${s}`, conv }); toast(t('storySent')); };
 document.addEventListener('visibilitychange', () => { if (!$('#story').hidden) pauseStory(document.hidden); });
