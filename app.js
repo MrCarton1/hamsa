@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '4.2.0';
+const VERSION = '4.3.0';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -125,7 +125,7 @@ async function start(user) {
     await Promise.all([loadChats(), loadFriends(), loadPrefs()]); await live(); inbox(); if (window.loadIce) loadIce(); syncClock(); viewing(false); delivered(); loadStatuses(); checkRinging();
     const qs = new URLSearchParams(location.search), want = qs.get('c'); if (want && convs.some(c => c.id === want)) openChat(want);
     if (qs.get('people')) openSettings('people');
-    pushStart(); if (window.bkStart) bkStart().catch(x => console.warn('[hamsa] backup', x));
+    pushStart(); if (window.bkStart) bkStart().catch(x => console.warn('[hamsa] backup', x)); setTimeout(cleanMedia, 15000);
   } finally { starting = false; const n = start.next; start.next = null; if (n && (!me || me.id !== n.id)) start(n); }
 }
 function stop() {
@@ -202,7 +202,7 @@ const otherOf = c => ((members.get(c.id) || []).find(m => m.user_id !== me.id) |
 const convTitle = c => c.is_group ? c.name : nameOf(otherOf(c));
 function preview(m, r) {
   if (!m) return t('startChat'); if (m.deleted) return t('deletedShort'); if (gone(m)) return '⏳';
-  if (m.kind === 'image') return t('photo'); if (m.kind === 'voice') return t('voice'); if (m.kind === 'sticker') return t('sticker'); if (m.kind === 'call') return t('callPrev');
+  if (m.kind === 'image') return t('photo'); if (m.kind === 'video') return t('videoMsg'); if (m.kind === 'voice') return t('voice'); if (m.kind === 'sticker') return t('sticker'); if (m.kind === 'call') return t('callPrev');
   if (r && r.fail) return t('cantOpen'); return (r && r.text) || '';
 }
 function renderChats() {
@@ -487,6 +487,8 @@ function msgHtml(m) {
   let body = '';
   if (m.deleted) body = `<span class="gone">${t('deletedMsg')}</span>`;
   else if (r.fail) body = `<span class="gone">${t('cantOpen')}</span>`;
+  else if (m.kind === 'video') { const w = +P.w || 9, h = +P.h || 16;
+    body = `<button type="button" class="vid" data-vid="${m.id}" style="aspect-ratio:${w}/${h}">${P.th ? `<img src="${esc(P.th)}" alt="">` : ''}<span class="vid-play">${ic('play', 'fill')}</span>${P.d ? `<span class="vid-dur">${fmtDur(P.d)}</span>` : ''}</button>` + (r.text ? `<div>${esc(r.text)}</div>` : ''); }
   else if (m.kind === 'image') body = `<img data-media="${esc(m.media_path)}" data-mid="${m.id}" alt="">` + (r.text ? `<div>${esc(r.text)}</div>` : '');
   else if (m.kind === 'sticker') body = `<img class="stk" data-media="${esc(m.media_path)}" data-mid="${m.id}" alt="">`;
   else if (m.kind === 'voice') body = voiceHtml(m, P);
@@ -539,6 +541,7 @@ $('#msgs').onclick = async e => {
     if (playing === m.id) { const d = voiceDur(m); if (d) player.currentTime = f * d; paintPlayer(); } else playVoice(m.id, f); return; }
   if (Date.now() - holdAt < 700) return;   // the finger was holding or swiping, not tapping
   if (!touchUI) { $$('.m.show').forEach(x => x !== el && x.classList.remove('show')); el.classList.toggle('show'); }
+  const vb = e.target.closest('[data-vid]'); if (vb && m && !m.deleted) return playVideoMsg(m);
   const jump = e.target.closest('[data-jump]'); if (jump) { const x = $(`.m[data-id="${jump.dataset.jump}"]`); if (x) { x.scrollIntoView({ block: 'center', behavior: 'smooth' }); x.classList.add('flash'); setTimeout(() => x.classList.remove('flash'), 1500); } return; }
   if (e.target.tagName === 'IMG' && e.target.src && !e.target.classList.contains('stk')) { const v = document.createElement('div'); v.className = 'viewer'; const im = document.createElement('img'); im.src = e.target.src; v.appendChild(im); v.onclick = () => v.remove(); document.body.appendChild(v); return; }
   const act = e.target.closest('[data-act]'); if (!act || !m) return; return msgAct(act.dataset.act, m, el);
@@ -587,6 +590,7 @@ function send({ kind = 'text', text = '', media = null, extra = null, conv = nul
   plain.set(tmp.id + ':' + tmp.iv, { text, payload });
   if (here) { tmp.reply_to = replyTo ? replyTo.id : null; replyTo = null; $('#replyBox').hidden = true; addMsg(tmp); scrollDown(); } else tmp.reply_to = null;
   if (prefs.msg_timer) tmp.expires_at = new Date(srvNow() + prefs.msg_timer * 1000).toISOString();
+  if (kind === 'video' && (!prefs.msg_timer || prefs.msg_timer > VID_DAYS * 86400)) tmp.expires_at = new Date(srvNow() + VID_DAYS * 864e5).toISOString();   // videos go after 30 days, unless someone saves (keeps) them
   tmp.job = () => deliver(c, tmp, payload, media);
   return tmp.job();
 }
@@ -624,8 +628,48 @@ function updateComposer() { const has = !!ta.value.trim(); $('#sendBtn').hidden 
 ta.addEventListener('focus', () => { if (!$('#stkPanel').hidden) { $('#stkPanel').hidden = true; $('#stkBtn').classList.remove('on'); } });
 $('#attachBtn').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f || !current) return;
+  if (/^video\//.test(f.type) || /\.(mov|mp4|m4v|webm)$/i.test(f.name)) return sendVideo(f);
   if (!/^image\/(png|jpeg|webp|gif|heic|heif)$/i.test(f.type) && !/^image\//.test(f.type)) return; if (f.size > 10 * 1024 * 1024) return toast(t('imgBig'));
   try { send({ kind: 'image', media: await shrink(f) }); } catch (x) { toast(t('notSent', { e: errText(x) })); } };
+// ---------- old files: when a message ran out or was deleted, its file is removed from storage by the first phone of that chat that comes online ----------
+async function cleanMedia() {
+  try { for (let round = 0; round < 5 && me; round++) {
+    const { data, error } = await sb.rpc('media_trash_mine', { n: 100 }); if (error || !data || !data.length) return;
+    const paths = data.map(x => typeof x === 'string' ? x : x.media_trash_mine).filter(Boolean); if (!paths.length) return;
+    await sb.storage.from('media').remove(paths); await sb.rpc('media_trash_done', { paths });
+    if (paths.length < 100) return; } } catch (x) { console.warn('[hamsa] cleaning', x); }
+}
+// ---------- videos in the chat: shrunk on the phone when needed (≤ 3 min, 720p), encrypted like everything else ----------
+const CHAT_VMAX = 180, VID_MAX = 48 * 1024 * 1024, VID_DAYS = 30;
+async function vidThumb(el) {   // a small picture of the first moments, shown in the bubble before it plays
+  try { el.currentTime = Math.min(0.4, (el.duration || 1) / 3); await new Promise(r => { el.onseeked = r; setTimeout(r, 2500); });
+    const k = Math.min(1, 360 / Math.max(el.videoWidth, el.videoHeight)), c = document.createElement('canvas'); c.width = Math.round(el.videoWidth * k) || 180; c.height = Math.round(el.videoHeight * k) || 320;
+    c.getContext('2d').drawImage(el, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.6); } catch { return ''; }
+}
+async function sendVideo(f) {
+  const conv = current; let v;
+  try { v = await prepVideo(f); } catch (x) { return toast(x.msg || t('cantOpen')); }
+  const el = v.el, w = el.videoWidth || 9, h = el.videoHeight || 16, th = await vidThumb(el), full = isFinite(el.duration) ? el.duration : v.d;
+  const canRecode = !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+  if (full > CHAT_VMAX + 0.5 && !canRecode) { URL.revokeObjectURL(v.url); return toast(t('vidLong')); }
+  const plainOK = /^video\/(mp4|webm)$/.test(f.type) && f.size <= VID_MAX && Math.max(w, h) <= 1280 && full <= CHAT_VMAX + 0.5;
+  let blob = f, type = f.type || 'video/mp4', d = Math.min(full, CHAT_VMAX);
+  if (!plainOK && canRecode) {
+    if (full > CHAT_VMAX + 0.5) toast(t('vidCut'));
+    try { const out = await recodeVideo({ ...v, d: Math.min(full, CHAT_VMAX) }, p => toast(t('videoPrep', { p: Math.round(p * 100) })), CHAT_VMAX); blob = out.blob; type = out.type; d = out.d; }
+    catch (x) { URL.revokeObjectURL(v.url); return toast(x.msg || t('videoTooBig')); }
+  }
+  URL.revokeObjectURL(v.url); if (blob.size > VID_MAX) return toast(t('videoTooBig'));
+  toast(t('uploading'));
+  send({ kind: 'video', media: { blob, type }, extra: { th, d: Math.round(d * 10) / 10, w, h }, conv: conv && conv.id });
+}
+async function playVideoMsg(m) {   // full screen, opened (decrypted) on the phone
+  const v = document.createElement('div'); v.className = 'viewer vviewer'; v.innerHTML = '<div class="sv-load"></div>';
+  const close = () => { v.querySelector('video')?.pause(); v.remove(); }; v.onclick = e => { if (e.target === v) close(); };
+  document.body.appendChild(v); const u = await mediaUrl(m).catch(() => null); if (!v.isConnected) return;
+  if (!u) { v.remove(); return toast(t('cantOpen')); }
+  v.innerHTML = `<video src="${u}" controls autoplay playsinline></video><button class="vv-x">${ic('x')}</button>`; v.querySelector('.vv-x').onclick = close;
+}
 async function shrink(f) {   // redraw every picture: smaller, and no hidden location data
   const bmp = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
   c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);

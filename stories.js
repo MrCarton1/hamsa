@@ -98,7 +98,7 @@ async function prepVideo(f) {
   return { file: f, blob: f, type: f.type || 'video/mp4', url, el, d: Math.min(d, VMAX), long: d > VMAX + .5, needs: needs && canRecode };
 }
 // shrink a video on the phone: redraw it at up to 720p, keep the sound, stop after one minute
-async function recodeVideo(v, onProg) {
+async function recodeVideo(v, onProg, max = VMAX) {   // max: how many seconds to keep (stories: 60, chat videos: 180)
   const el = v.el; el.currentTime = 0; el.muted = false;
   const k = Math.min(1, 720 / Math.max(el.videoWidth, el.videoHeight)), w = Math.max(2, Math.round(el.videoWidth * k / 2) * 2), h = Math.max(2, Math.round(el.videoHeight * k / 2) * 2);
   const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'), stream = c.captureStream(30);
@@ -107,7 +107,7 @@ async function recodeVideo(v, onProg) {
   const rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 1600000, audioBitsPerSecond: 96000 }), chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   await el.play(); rec.start(500);
-  const limit = Math.min(VMAX, v.d || VMAX);
+  const limit = Math.min(max, v.d || max);
   await new Promise(res => { const draw = () => { if (el.ended || el.currentTime >= limit) return res(); x.drawImage(el, 0, 0, w, h); onProg(Math.min(1, el.currentTime / limit)); requestAnimationFrame(draw); }; el.onended = res; draw(); });
   el.pause(); const stopped = new Promise(r => rec.onstop = r); rec.stop(); await stopped; stream.getTracks().forEach(tr => tr.stop()); if (ac) ac.close().catch(() => {});
   const mt = (rec.mimeType || type || 'video/webm').split(';')[0], blob = new Blob(chunks, { type: mt });

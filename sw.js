@@ -1,8 +1,8 @@
 // همسة · service worker: opens fast, updates itself, and shows notifications when the app is closed.
 // Notification previews are decrypted HERE, on the phone, with this device's private key: the server never sees them.
 importScripts('config.js', 'crypto.js', 'i18n.js');
-const CACHE = 'hamsa-v29';
-const SHELL = ['./', './index.html', './style.css?v=420', './app.js?v=420', './calls.js?v=420', './stories.js?v=420', './backup.js?v=420', './reactions.js?v=420', './config.js?v=420', './crypto.js?v=420', './i18n.js?v=420', './icon.svg', './icon-192.png', './manifest.json',
+const CACHE = 'hamsa-v30';
+const SHELL = ['./', './index.html', './style.css?v=430', './app.js?v=430', './calls.js?v=430', './stories.js?v=430', './backup.js?v=430', './reactions.js?v=430', './config.js?v=430', './crypto.js?v=430', './i18n.js?v=430', './icon.svg', './icon-192.png', './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
@@ -29,7 +29,7 @@ self.addEventListener('push', e => {
     let lang = 'en'; try { lang = (await HC.pref('lang')) || 'en'; } catch {}
     const T = (self.I18N[lang] || self.I18N.en);
     let body = T.notifTitle;
-    if (d.k === 'image') body = T.photo; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker; else if (d.k === 'call') body = T.callPrev;
+    if (d.k === 'image') body = T.photo; else if (d.k === 'video') body = T.videoMsg; else if (d.k === 'voice') body = T.voice; else if (d.k === 'sticker') body = T.sticker; else if (d.k === 'call') body = T.callPrev;
     if (d.k === 'ring') return self.registration.showNotification(d.title || 'همسة', { body: d.v ? T.incomingVideo : T.incomingVoice, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'call-' + d.call, renotify: true, requireInteraction: true, vibrate: [500, 250, 500, 250, 500, 250, 500], dir: T.dir, lang, data: { conv: d.conv, call: d.call } });
     if (d.k === 'test') return self.registration.showNotification('همسة', { body: String(d.body || '✅').slice(0, 120), icon: 'icon-192.png', badge: 'icon-192.png', tag: 'hamsa-test', renotify: true, dir: T.dir, lang });
     if (d.k === 'missed') return self.registration.showNotification(d.title || 'همسة', { body: d.v ? T.missedVideo : T.missedCall, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'call-' + d.call, renotify: true, dir: T.dir, lang, data: { conv: d.conv } });
