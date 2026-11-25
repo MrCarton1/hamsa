@@ -278,7 +278,8 @@ dialog .set{max-height:60vh}
 .safety .sec{display:flex;align-items:center;gap:6px;color:var(--lamp)}
 .safety .code{font:600 17px/1.6 'Readex Pro',monospace;letter-spacing:.5px;text-align:center;word-spacing:6px}
 dialog label.chk{display:flex;align-items:center;gap:10px}
-dialog label.chk span{flex:1}
+dialog label.chk span:not(.av){flex:1}
+dialog label.chk .av{flex:none}
 .gone{font-style:italic;opacity:.7}
 .m .old{font-size:10.5px;opacity:.8}
 
@@ -498,3 +499,16 @@ button.pf-link{border-radius:32%}
 .sm-prog{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,11,30,.72);color:#fff;font-weight:600;font-size:16px}
 video.sv-img{width:100%;height:100%;background:#000}
 #svMute .ic{width:22px;height:22px}
+
+/* groups */
+.gbadge{flex:none;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--raised);color:var(--muted)}
+.gbadge.own{background:var(--lamp);color:var(--lamp-ink)}
+.gwide{width:100%;margin:6px 0 4px;display:flex;align-items:center;justify-content:center;gap:8px}
+.gdesc{margin:0;text-align:center;white-space:pre-wrap;max-width:100%}
+.gopts{display:grid;gap:6px}.gopt{width:100%;justify-content:flex-start;text-align:start}
+.gph{position:relative;cursor:pointer;display:inline-block}.gph .cam{position:absolute;inset-inline-end:-4px;bottom:-4px;width:36px;height:36px;border-radius:50%;background:var(--lamp);color:var(--lamp-ink);display:grid;place-items:center}
+.gph .cam .ic{width:20px;height:20px}
+dialog textarea{width:100%;margin-top:8px;padding:12px 14px;border-radius:14px;border:1.5px solid transparent;background:var(--raised);color:var(--text);outline:none;resize:vertical;font:inherit}
+dialog textarea:focus{border-color:var(--lamp)}
+dialog .st-group{margin-top:8px;border-radius:16px;background:var(--raised);overflow:hidden}
+.lock-note{padding:14px;text-align:center;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
