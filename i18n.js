@@ -1,7 +1,7 @@
 // همسة · languages. English is the default until the person picks one.
 self.I18N = {
   en: {
-    replyStory: 'Send a reply…', storySent: 'Sent ✅', storyReplyTag: 'Replied to your story', dir: 'ltr', langName: 'English',
+    replyStory: 'Send a reply…', storySent: 'Sent ✅', storyReplyTag: 'Replied to your story', tapToAdd: 'Tap to add to your story', newStories: 'New', seenStories: 'Viewed', noStories: 'No stories from your friends yet', smCamera: "Camera", smGallery: "Photos", smPick: "What do you want to share?", smDiscard: "Discard this story?", dir: 'ltr', langName: 'English',
     pickTitle: 'Choose your language', pickSub: 'You can change it later in Settings.',
     tagline: 'Close words, between you and your people',
     signIn: 'Sign in', signUp: 'Create account', yourName: 'Your name (shown to people)', username: 'Username (English letters)', password: 'Password',
@@ -68,7 +68,7 @@ self.I18N = {
     pushFriendReq: 'sent you a friend request 👋', pushFriendAcc: 'accepted your friend request ✅', removeFriend: 'Remove from friends', statusVideo: 'Video', videoPrep: 'Preparing the video… {p}%', uploading: 'Uploading…', videoTooBig: 'This video is too big for this phone to send. Try a shorter one.', videoLong: 'Only the first minute will be shared', tapSound: 'Tap for sound'
   },
   ar: {
-    replyStory: 'أرسل رد…', storySent: 'انرسل ✅', storyReplyTag: 'رد على الستوري حقك', dir: 'rtl', langName: 'العربية',
+    replyStory: 'أرسل رد…', storySent: 'انرسل ✅', storyReplyTag: 'رد على الستوري حقك', tapToAdd: 'اضغط عشان تضيف ستوري', newStories: 'جديدة', seenStories: 'شفتها', noStories: 'ما فيه ستوري من أصدقائك للحين', smCamera: "كاميرا", smGallery: "الصور", smPick: "وش تبي تنزّل في الستوري؟", smDiscard: "تلغي هذا الستوري؟", dir: 'rtl', langName: 'العربية',
     pickTitle: 'اختر لغتك', pickSub: 'تقدر تغيّرها بعدين من الإعدادات.',
     tagline: 'كلام قريب، بينك وبين ناسك',
     signIn: 'تسجيل الدخول', signUp: 'حساب جديد', yourName: 'اسمك (يظهر للناس)', username: 'اسم المستخدم (إنجليزي)', password: 'كلمة السر',
@@ -135,7 +135,7 @@ self.I18N = {
     pushFriendReq: 'أرسل لك طلب صداقة 👋', pushFriendAcc: 'قبل طلب صداقتك ✅', removeFriend: 'شيله من أصدقائي', statusVideo: 'فيديو', videoPrep: 'نجهّز الفيديو… {p}%', uploading: 'جاري الرفع…', videoTooBig: 'الفيديو كبير على هالجوال. جرّب فيديو أقصر.', videoLong: 'بتنزل أول دقيقة بس من الفيديو', tapSound: 'اضغط عشان الصوت'
   },
   nl: {
-    replyStory: 'Stuur een reactie…', storySent: 'Verstuurd ✅', storyReplyTag: 'Reageerde op je story', dir: 'ltr', langName: 'Nederlands',
+    replyStory: 'Stuur een reactie…', storySent: 'Verstuurd ✅', storyReplyTag: 'Reageerde op je story', tapToAdd: 'Tik om iets aan je story toe te voegen', newStories: 'Nieuw', seenStories: 'Bekeken', noStories: 'Nog geen stories van je vrienden', smCamera: "Camera", smGallery: "Foto's", smPick: "Wat wil je delen?", smDiscard: "Deze story weggooien?", dir: 'ltr', langName: 'Nederlands',
     pickTitle: 'Kies je taal', pickSub: 'Je kunt dit later wijzigen in Instellingen.',
     tagline: 'Dichtbij, tussen jou en je mensen',
     signIn: 'Inloggen', signUp: 'Account maken', yourName: 'Je naam (zichtbaar voor anderen)', username: 'Gebruikersnaam (Engelse letters)', password: 'Wachtwoord',

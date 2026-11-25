@@ -15,49 +15,74 @@ async function loadStatuses() {
 const loadStatusesSoon = () => { clearTimeout(stTimer); stTimer = setTimeout(loadStatuses, 700); };
 const unseen = id => (stories.get(id) || []).some(r => !seenSt.has(r.id));
 function stripOrder() { return [...stories.keys()].filter(id => id !== me.id).sort((a, b) => (unseen(b) - unseen(a)) || (new Date(stories.get(b)[stories.get(b).length - 1].created_at) - new Date(stories.get(a)[stories.get(a).length - 1].created_at))); }
-function renderStrip() {
-  const box = $('#stories'); if (!box || !me) return; const mine = stories.get(me.id) || [];
-  box.innerHTML = `<button class="story me" data-su="${me.id}"><span class="ring${mine.length ? ' own' : ''}">${avatarHtml(me.id)}${mine.length ? '' : `<i class="plus-b">${ic('plus')}</i>`}</span><small>${t('myStatus')}</small></button>`
-    + stripOrder().map(id => `<button class="story" data-su="${id}"><span class="ring${unseen(id) ? ' new' : ''}">${avatarHtml(id)}</span><small>${esc(nameOf(id))}</small></button>`).join('');
+function renderStrip() {   // the stories page (its own tab, like Snapchat)
+  const box = $('#stories'); if (!box || !me) return; const mine = stories.get(me.id) || [], order = stripOrder();
+  const last = id => { const l = stories.get(id) || []; return l.length ? ago(l[l.length - 1].created_at) : ''; };
+  const row = id => `<button class="sp-row" data-su="${id}"><span class="ring${unseen(id) ? ' new' : ''}">${avatarHtml(id)}</span><span class="mid"><b>${esc(nameOf(id))}</b><small>${last(id)}</small></span></button>`;
+  const fresh = order.filter(unseen), old = order.filter(id => !unseen(id));
+  box.innerHTML = `<div class="sp-me"><button class="sp-mine" data-su="${me.id}"><span class="ring${mine.length ? ' own' : ''}">${avatarHtml(me.id)}${mine.length ? '' : `<i class="plus-b">${ic('plus')}</i>`}</span><span class="mid"><b>${t('myStatus')}</b><small>${mine.length ? last(me.id) : t('tapToAdd')}</small></span></button><button class="sp-add" data-add="1" title="${t('addStatus')}">${ic('camera')}</button></div>`
+    + (fresh.length ? `<div class="sp-sec">${t('newStories')}</div><div class="sp-list">${fresh.map(row).join('')}</div>` : '')
+    + (old.length ? `<div class="sp-sec">${t('seenStories')}</div><div class="sp-list seen">${old.map(row).join('')}</div>` : '')
+    + (order.length ? '' : `<p class="sp-empty">${t('noStories')}</p>`);
+  const dot = $('#stDot'); if (dot) dot.hidden = !fresh.length;
 }
-$('#stories').onclick = e => { const b = e.target.closest('[data-su]'); if (!b) return; const id = b.dataset.su;
+$('#stories').onclick = e => { if (e.target.closest('[data-add]')) return makeStatus(); const b = e.target.closest('[data-su]'); if (!b) return; const id = b.dataset.su;
   if (id === me.id && !(stories.get(me.id) || []).length) return makeStatus(); openStory(id); };
+// the two tabs at the bottom: chats and stories
+function setTab(tab) { $('#chatsView').hidden = tab !== 'chats'; $('#storiesView').hidden = tab !== 'stories'; $$('.tabbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); if (tab === 'stories') renderStrip(); }
+$('.tabbar').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); };
 
-// ---- making a status: words, a photo, or a video (up to a minute) ----
+// ---- making a story: a full screen like Snapchat (camera, photos, or words on a colour) ----
 const VMAX = 60;   // seconds
 function makeStatus() {
-  let mode = 'text', bg = BGS[Math.floor(Math.random() * BGS.length)], photo = null, vid = null, busy = false;
-  dialog(`<h3>${t('addStatus')}</h3><div class="chips" id="smMode"><button type="button" data-m="text" class="on">${ic('text')} ${t('statusText')}</button><button type="button" data-m="photo">${ic('photo')} ${t('statusPhoto')}</button><button type="button" data-m="video">${ic('video')} ${t('statusVideo')}</button></div>
-<div id="smBox" class="sm-box" style="background:${bg}"><textarea id="smTxt" maxlength="400" placeholder="${esc(t('typeStatus'))}"></textarea><img id="smImg" alt="" hidden><video id="smVid" playsinline muted loop hidden></video><div id="smProg" class="sm-prog" hidden></div></div>
-<div class="chips sm-bgs" id="smBg">${BGS.map(c => `<button type="button" data-bg="${c}" style="background:${c}" class="${c === bg ? 'on' : ''}"></button>`).join('')}</div>
-<p id="smVnote" class="muted small" hidden></p>
-<input id="smCap" maxlength="200" placeholder="${esc(t('caption'))}" hidden>
-<p class="muted small">${t('statusDurNote')} (${hoursLabel(prefs.status_hours)})</p>
-<div class="row"><button value="x" class="btn ghost" id="smCancel">${t('cancel')}</button><button value="ok" class="btn primary" id="smPost">${t('post')}</button></div>`, async v => {
-    if (v !== 'ok') return; const text = (mode === 'text' ? $('#smTxt').value : $('#smCap').value).trim();
-    try { await postStatus({ text, bg, photo: mode === 'photo' ? photo : null, video: mode === 'video' ? vid : null }); toast(t('statusPosted')); } catch (x) { console.warn(x); toast(errText(x)); } });
-  const setMode = m => { mode = m; $$('#smMode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
-    $('#smTxt').hidden = m !== 'text'; $('#smBg').hidden = m !== 'text'; $('#smCap').hidden = m === 'text';
-    $('#smImg').hidden = m !== 'photo' || !photo; const sv = $('#smVid'); sv.hidden = m !== 'video' || !vid; if (m === 'video' && vid) sv.play().catch(() => {}); else sv.pause();
-    $('#smVnote').hidden = m !== 'video' || !vid || !vid.long; $('#smBox').style.background = m === 'text' ? bg : '#0b0c22'; };
-  const pick = accept => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0] || null); i.click(); });
-  $('#smMode').onclick = async e => { const b = e.target.closest('[data-m]'); if (!b || busy) return; const m = b.dataset.m;
-    if (m === 'text') return setMode('text');
-    if (m === 'photo') { const f = await pick('image/*'); if (!f) return; try { photo = await shrink(f); $('#smImg').src = URL.createObjectURL(photo.blob); setMode('photo'); } catch { toast(t('cantOpen')); } return; }
-    const f = await pick('video/*'); if (!f) return;
-    try { vid = await prepVideo(f); const sv = $('#smVid'); sv.src = vid.url; $('#smVnote').textContent = t('videoLong'); setMode('video'); } catch (x) { toast(x.msg || t('cantOpen')); } };
-  $('#smBg').onclick = e => { const b = e.target.closest('[data-bg]'); if (!b) return; bg = b.dataset.bg; $$('#smBg button').forEach(x => x.classList.toggle('on', x === b)); $('#smBox').style.background = bg; };
-  // posting: check first; a video that needs shrinking is shrunk now, while the screen stays open and shows progress
-  $('#smPost').addEventListener('click', async e => {
-    if (busy) return e.preventDefault();
-    if (mode === 'text' && !$('#smTxt').value.trim()) { e.preventDefault(); return toast(t('writeSomething')); }
-    if ((mode === 'photo' && !photo) || (mode === 'video' && !vid)) { e.preventDefault(); return toast(t('writeSomething')); }
-    if (mode !== 'video' || !vid.needs) return;
-    e.preventDefault(); busy = true; $('#smPost').disabled = $('#smCancel').disabled = true; const pg = $('#smProg'); pg.hidden = false;
-    try { const out = await recodeVideo(vid, p => pg.textContent = t('videoPrep', { p: Math.round(p * 100) }));
-      Object.assign(vid, out, { needs: false }); pg.textContent = t('uploading'); $('#dlg').close('ok'); }
-    catch (x) { console.warn(x); busy = false; $('#smPost').disabled = $('#smCancel').disabled = false; pg.hidden = true; toast(x.msg || t('videoTooBig')); }
-  });
+  if ($('#smake')) return;
+  let mode = null, bg = BGS[Math.floor(Math.random() * BGS.length)], photo = null, vid = null, busy = false;
+  const el = document.createElement('section'); el.id = 'smake'; el.className = 'smake';
+  el.innerHTML = `<div class="sm-stage" id="smStage">
+  <div class="sm-pick" id="smPick"><b>${t('smPick')}</b>
+    <div class="sm-opts"><button type="button" data-src="cam"><span>${ic('camera')}</span><small>${t('smCamera')}</small></button>
+    <button type="button" data-src="gal"><span>${ic('photo')}</span><small>${t('smGallery')}</small></button>
+    <button type="button" data-src="txt"><span>${ic('text')}</span><small>${t('statusText')}</small></button></div>
+    <p>${t('statusDurNote')} (${hoursLabel(prefs.status_hours)})</p></div>
+  <textarea id="smTxt" class="sm-txt" maxlength="400" dir="auto" placeholder="${esc(t('typeStatus'))}" hidden></textarea>
+  <img id="smImg" class="sm-media" alt="" hidden><video id="smVid" class="sm-media" playsinline muted loop hidden></video>
+  <input id="smCap" class="sm-cap" maxlength="200" dir="auto" placeholder="${esc(t('caption'))}" hidden>
+  <div id="smProg" class="sm-prog2" hidden></div></div>
+<div class="sm-top"><button type="button" class="sm-x" id="smX" title="${t('close')}">${ic('x')}</button><span class="sm-sp"></span>
+  <button type="button" class="sm-tool" id="smAgain" title="${t('smGallery')}" hidden>${ic('photo')}</button></div>
+<div class="sm-bot" id="smBot" hidden><div class="sm-bgs2" id="smBg" hidden>${BGS.map(c => `<button type="button" data-bg="${c}" style="background:${c}" class="${c === bg ? 'on' : ''}"></button>`).join('')}</div>
+  <p id="smVnote" class="sm-vnote" hidden>${t('videoLong')}</p>
+  <button type="button" class="sm-post" id="smPost">${avatarHtml(me.id, { cls: 'sm' })}<b>${t('myStatus')}</b>${ic('send')}</button></div>`;
+  document.body.appendChild(el); el.style.background = '#000'; requestAnimationFrame(() => el.classList.add('open'));
+  const pick = (accept, cam) => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; if (cam) i.setAttribute('capture', 'environment'); i.onchange = () => res(i.files[0] || null); i.click(); });
+  const show = m => { mode = m; const has = !!m;
+    $('#smPick').hidden = has; $('#smBot').hidden = !has; $('#smTxt').hidden = m !== 'text'; $('#smBg').hidden = m !== 'text';
+    $('#smImg').hidden = m !== 'photo'; const sv = $('#smVid'); sv.hidden = m !== 'video'; if (m === 'video') sv.play().catch(() => {}); else sv.pause();
+    $('#smCap').hidden = !(m === 'photo' || m === 'video'); $('#smAgain').hidden = !(m === 'photo' || m === 'video'); $('#smVnote').hidden = !(m === 'video' && vid && vid.long);
+    el.style.background = m === 'text' ? bg : '#000'; if (m === 'text') $('#smTxt').focus(); };
+  const useFile = async f => { if (!f) return;
+    if (/^video\//.test(f.type)) { try { vid = await prepVideo(f); const sv = $('#smVid'); sv.classList.toggle('fill', vid.el.videoHeight / (vid.el.videoWidth || 1) > 1.25); sv.src = vid.url; photo = null; show('video'); } catch (x) { toast(x.msg || t('cantOpen')); } return; }
+    try { photo = await shrink(f); const im = $('#smImg'); im.onload = () => im.classList.toggle('fill', im.naturalHeight / im.naturalWidth > 1.25); im.src = URL.createObjectURL(photo.blob); vid = null; show('photo'); } catch { toast(t('cantOpen')); } };
+  const close = () => { if (busy) return; const sv = $('#smVid'); sv.pause(); if (vid && vid.url) URL.revokeObjectURL(vid.url); el.classList.remove('open'); setTimeout(() => el.remove(), 220); document.removeEventListener('keydown', esc_); };
+  const dirty = () => (mode === 'text' && $('#smTxt').value.trim()) || mode === 'photo' || mode === 'video';
+  const esc_ = e => { if (e.key === 'Escape') $('#smX').click(); }; document.addEventListener('keydown', esc_);
+  $('#smX').onclick = () => { if (busy) return; if (dirty() && !confirm(t('smDiscard'))) return; close(); };
+  $('#smPick').onclick = async e => { const b = e.target.closest('[data-src]'); if (!b) return;
+    if (b.dataset.src === 'txt') return show('text');
+    useFile(await pick('image/*,video/*', b.dataset.src === 'cam')); };
+  $('#smAgain').onclick = async () => useFile(await pick('image/*,video/*'));
+  $('#smBg').onclick = e => { const b = e.target.closest('[data-bg]'); if (!b) return; bg = b.dataset.bg; $$('#smBg button').forEach(x => x.classList.toggle('on', x === b)); el.style.background = bg; };
+  $('#smTxt').oninput = () => { const n = $('#smTxt').value.length; $('#smTxt').style.fontSize = (n > 160 ? 22 : n > 70 ? 27 : 34) + 'px'; };
+  $('#smPost').onclick = async () => {
+    if (busy) return; const text = (mode === 'text' ? $('#smTxt').value : $('#smCap').value).trim();
+    if (mode === 'text' && !text) return toast(t('writeSomething'));
+    busy = true; el.classList.add('busy'); const pg = $('#smProg'); pg.hidden = false; pg.textContent = t('uploading');
+    try {
+      if (mode === 'video' && vid.needs) { const out = await recodeVideo(vid, p => pg.textContent = t('videoPrep', { p: Math.round(p * 100) })); Object.assign(vid, out, { needs: false }); pg.textContent = t('uploading'); }
+      await postStatus({ text, bg, photo: mode === 'photo' ? photo : null, video: mode === 'video' ? vid : null });
+      busy = false; close(); toast(t('statusPosted'));
+    } catch (x) { console.warn(x); busy = false; el.classList.remove('busy'); pg.hidden = true; toast(x.msg || errText(x)); }
+  };
 }
 // look at a chosen video: how long, how big, and can every phone play it as it is?
 async function prepVideo(f) {
@@ -94,7 +119,7 @@ async function postStatus({ text, bg, photo, video }) {
   const { data: devs } = await sb.from('device_keys').select('user_id,device_id,pub').in('user_id', [me.id, ...fids]).eq('revoked', false);
   const list = devs || []; if (!list.some(d => d.device_id === myDev.id)) list.push({ user_id: me.id, device_id: myDev.id, pub: myDev.pub });
   const K = HC.newKey(), payload = { t: text, bg }, media = photo || video; let path = null;
-  if (media) { if (video) toast(t('uploading'));
+  if (media) {
     const sealed = await HC.sealBytes(K, new Uint8Array(await media.blob.arrayBuffer())); path = `${me.id}/${crypto.randomUUID()}`;
     const up = await sb.storage.from('status').upload(path, new Blob([sealed.data], { type: 'application/octet-stream' }), { contentType: 'application/octet-stream' }); if (up.error) throw up.error;
     payload.mi = sealed.iv; payload.mt = media.type; if (video) payload.d = Math.round(video.d * 10) / 10; }
