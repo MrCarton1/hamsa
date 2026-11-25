@@ -512,3 +512,20 @@ dialog textarea{width:100%;margin-top:8px;padding:12px 14px;border-radius:14px;b
 dialog textarea:focus{border-color:var(--lamp)}
 dialog .st-group{margin-top:8px;border-radius:16px;background:var(--raised);overflow:hidden}
 .lock-note{padding:14px;text-align:center;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+
+/* group page (full screen, like WhatsApp) */
+.gdesc-box{padding:14px 16px;white-space:pre-wrap;line-height:1.6;border-bottom:1px solid var(--line)}
+.gmem .st-label b{display:block;font-weight:600}.gmem .st-label small{display:block;color:var(--muted);font-size:13px}
+.gpick{cursor:pointer;position:relative}.gpick input{position:absolute;opacity:0;pointer-events:none}
+.gtick{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent;flex:none}
+.gtick .ic{width:16px;height:16px}.gpick input:checked+.gtick{background:var(--lamp);border-color:var(--lamp);color:var(--lamp-ink)}
+.st-field textarea{width:100%;padding:12px 14px;border-radius:14px;border:1.5px solid transparent;background:var(--raised);outline:none;color:var(--text);font:inherit;resize:vertical}
+.st-field textarea:focus{border-color:var(--lamp)}.st-group.pad .st-field+.st-field{margin-top:12px}
+.gbig{width:100%;border-radius:16px;display:block}
+/* bottom action sheet */
+dialog.sheet{margin:auto auto 0;width:min(520px,100%);max-width:100%;border-radius:22px 22px 0 0;padding:10px 8px calc(16px + env(safe-area-inset-bottom))}
+.sheet-head{display:flex;gap:10px;align-items:center;padding:6px 14px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.sheet-head b{flex:1}
+.sheet-opt{display:flex;gap:14px;align-items:center;width:100%;padding:14px 16px;border-radius:14px;text-align:start;font-weight:500;color:var(--text)}
+.sheet-opt:hover{background:var(--raised)}.sheet-opt .ic{width:22px;height:22px;color:var(--muted)}
+.sheet-opt.danger,.sheet-opt.danger .ic{color:var(--danger)}

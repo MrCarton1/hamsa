@@ -1,6 +1,6 @@
 // همسة · the app. Data lives in Supabase and every read/write is checked by the database rules (setup.sql).
 // Message content is end-to-end encrypted on the phone (crypto.js): the server only stores ciphertext.
-const VERSION = '3.4.0';
+const VERSION = '3.4.1';
 // If the phone still shows an older page with these newer files, refresh everything once instead of breaking.
 if (!document.getElementById('peopleBtn') || !document.getElementById('stkPanel') || !document.getElementById('call') || !document.getElementById('stories') || !document.getElementById('svMute')) {
   (async () => { try { const n = +sessionStorage.getItem('hamsa-fix') || 0; if (n > 2) return; sessionStorage.setItem('hamsa-fix', n + 1);
@@ -293,20 +293,21 @@ function rename(id) {
 function afterRename() { loadFriends(); renderChats(); if (current) { $('#roomName').textContent = convTitle(current); updateStatus(); $$('.m').forEach(el => { const m = msgsById.get(+el.dataset.id); if (m) paintMsg(el, m); }); } }
 
 // ---------- groups: owner (who made it), leaders, settings ----------
+P.crown = 'M3 18h18M4 15L3 7l5 4 4-7 4 7 5-4-1 8z';
 const GT = {
-  ar: { owner: 'المالك', leader: 'قائد', membersN: '{n} أعضاء', editInfo: 'تعديل اسم وصورة القروب', addPeople: 'إضافة أعضاء', groupSettings: 'إعدادات القروب',
+  ar: { groupInfo: 'معلومات القروب', groupN: 'قروب · {n} أعضاء', addDesc: 'أضف وصف أو غيّر الصورة والاسم', msgPrivate: 'مراسلة {n}', owner: 'المالك', leader: 'قائد', membersN: '{n} أعضاء', editInfo: 'تعديل اسم وصورة القروب', addPeople: 'إضافة أعضاء', groupSettings: 'إعدادات القروب',
     sendT: 'الإرسال للقادة فقط', sendN: 'إذا شغّلته، القادة بس يقدرون يرسلون رسائل', editT: 'تعديل المعلومات للقادة فقط', editN: 'الاسم والوصف والصورة', addT: 'إضافة الأعضاء للقادة فقط', addN: '',
     mute: 'كتم الإشعارات', muteN: 'ما يجيك إشعار على الجوال من هذا القروب', viewProfile: 'عرض الملف', makeLeader: 'تعيينه قائد', unLeader: 'إلغاء القيادة', kick: 'إخراج من القروب',
     makeOwner: 'نقل ملكية القروب له', kickSure: 'متأكد تبي تخرج {n} من القروب؟', ownerSure: 'بتصير {n} مالك القروب، وأنت بتصير قائد. متأكد؟',
     ownerLeave: 'أنت مالك القروب. إذا طلعت، أقدم قائد (أو أقدم عضو) يصير المالك. متأكد؟', gName: 'اسم القروب', gDesc: 'وصف القروب (اختياري)', gPhoto: 'تغيير الصورة', gNoPhoto: 'شيل الصورة',
     onlyLeadersSend: 'القادة بس يقدرون يرسلون في هذا القروب', noFriendsToAdd: 'كل أصدقائك موجودين في القروب', pickToAdd: 'اختر الأصدقاء اللي تبي تضيفهم', saved: 'تم الحفظ ✅', needSql: 'هذي الميزة تحتاج تحديث قاعدة البيانات أول' },
-  en: { owner: 'Owner', leader: 'Leader', membersN: '{n} members', editInfo: 'Edit group name & photo', addPeople: 'Add members', groupSettings: 'Group settings',
+  en: { groupInfo: 'Group info', groupN: 'Group · {n} members', addDesc: 'Add a description or change photo & name', msgPrivate: 'Message {n}', owner: 'Owner', leader: 'Leader', membersN: '{n} members', editInfo: 'Edit group name & photo', addPeople: 'Add members', groupSettings: 'Group settings',
     sendT: 'Only leaders can send', sendN: 'When on, only leaders can send messages', editT: 'Only leaders can edit info', editN: 'Name, description and photo', addT: 'Only leaders can add members', addN: '',
     mute: 'Mute notifications', muteN: 'No phone notifications from this group', viewProfile: 'View profile', makeLeader: 'Make leader', unLeader: 'Remove as leader', kick: 'Remove from group',
     makeOwner: 'Make group owner', kickSure: 'Remove {n} from the group?', ownerSure: '{n} becomes the owner and you become a leader. Sure?',
     ownerLeave: 'You own this group. If you leave, the oldest leader (or member) becomes the owner. Sure?', gName: 'Group name', gDesc: 'Group description (optional)', gPhoto: 'Change photo', gNoPhoto: 'Remove photo',
     onlyLeadersSend: 'Only leaders can send messages in this group', noFriendsToAdd: 'All your friends are already in the group', pickToAdd: 'Choose friends to add', saved: 'Saved ✅', needSql: 'This needs the database update first' },
-  nl: { owner: 'Eigenaar', leader: 'Leider', membersN: '{n} leden', editInfo: 'Groepsnaam en foto wijzigen', addPeople: 'Leden toevoegen', groupSettings: 'Groepsinstellingen',
+  nl: { groupInfo: 'Groepsinfo', groupN: 'Groep · {n} leden', addDesc: 'Beschrijving toevoegen of foto en naam wijzigen', msgPrivate: 'Bericht aan {n}', owner: 'Eigenaar', leader: 'Leider', membersN: '{n} leden', editInfo: 'Groepsnaam en foto wijzigen', addPeople: 'Leden toevoegen', groupSettings: 'Groepsinstellingen',
     sendT: 'Alleen leiders mogen sturen', sendN: 'Als dit aan staat, kunnen alleen leiders berichten sturen', editT: 'Alleen leiders wijzigen info', editN: 'Naam, beschrijving en foto', addT: 'Alleen leiders voegen leden toe', addN: '',
     mute: 'Meldingen dempen', muteN: 'Geen meldingen van deze groep', viewProfile: 'Profiel bekijken', makeLeader: 'Leider maken', unLeader: 'Geen leider meer', kick: 'Uit groep verwijderen',
     makeOwner: 'Eigenaar maken', kickSure: '{n} uit de groep verwijderen?', ownerSure: '{n} wordt eigenaar en jij wordt leider. Zeker?',
@@ -334,83 +335,103 @@ function convChanged() { clearTimeout(convT); convT = setTimeout(async () => {
   await loadChats(); if (!current) return;
   const nc = convs.find(x => x.id === current.id); if (!nc) { closeChat(); return; }
   Object.assign(current, { name: nc.name, avatar_url: nc.avatar_url, description: nc.description, only_admins_send: nc.only_admins_send, only_admins_edit: nc.only_admins_edit, only_admins_add: nc.only_admins_add });
-  $('#roomName').textContent = convTitle(current); avatarInto($('#roomAv'), current.is_group ? current.id : otherOf(current), current.is_group); lockComposer();
+  $('#roomName').textContent = convTitle(current); avatarInto($('#roomAv'), current.is_group ? current.id : otherOf(current), current.is_group); lockComposer(); redrawGroupPage();
 }, 400); }
-async function refreshGroup(c) { await loadChats(); const nc = convs.find(x => x.id === c.id); if (!nc) return closeChat(); if (current && current.id === c.id) Object.assign(current, nc); lockComposer(); return groupInfo(nc); }
+async function refreshGroup(c) {
+  await loadChats(); const nc = convs.find(x => x.id === c.id);
+  if (!nc) { closeSettings(); if (current && current.id === c.id) closeChat(); return; }
+  if (current && current.id === c.id) Object.assign(current, nc); lockComposer(); redrawGroupPage();
+}
+const groupPage = p => /^(group|gadd|gedit):/.test(p || '');
+function redrawGroupPage() { const top = stPages[stPages.length - 1]; if (groupPage(top)) renderSettings(top); }
+const groupOf = id => convs.find(x => x.id === id) || (current && current.id === id ? current : null);
+function groupInfo(c) { openSettings('group:' + c.id); }
 
-function groupInfo(c) {
-  const ms = (members.get(c.id) || []).slice().sort((a, b) => rankOf(a.role) - rankOf(b.role) || nameOf(a.user_id).localeCompare(nameOf(b.user_id)));
+// the group page: full screen, like WhatsApp
+function renderGroup(b, id, kind) {
+  const c = groupOf(id); if (!c) return closeSettings();
+  const ms = (members.get(c.id) || []).slice().sort((a, b2) => (a.user_id === me.id ? -1 : b2.user_id === me.id ? 1 : 0) || rankOf(a.role) - rankOf(b2.role) || nameOf(a.user_id).localeCompare(nameOf(b2.user_id)));
   const mine = roleOf(c, me.id), lead = isLeader(mine), canEdit = lead || c.only_admins_edit === false, canAdd = lead || c.only_admins_add === false, meRow = ms.find(m => m.user_id === me.id) || {};
   const badge = r => r === 'owner' ? `<span class="gbadge own">${gt('owner')}</span>` : r === 'admin' ? `<span class="gbadge">${gt('leader')}</span>` : '';
-  dialog(`<div class="info-head">${avatarHtml(c.id, { group: true, cls: 'xl' })}<h3>${esc(c.name)}</h3>${c.description ? `<p class="muted gdesc">${esc(c.description)}</p>` : ''}<small class="muted">${gt('membersN', { n: ms.length })}</small>
-${canEdit ? `<button value="edit" class="btn ghost small">${gt('editInfo')}</button>` : ''}</div>
-${canAdd ? `<button value="add" class="btn primary gwide">${ic('userPlus')} ${gt('addPeople')}</button>` : ''}
-<div class="sec flush">${t('members')}</div><div class="scroll">${ms.map(m => `<div class="frow flush pf-open" data-gm="${m.user_id}">${avatarHtml(m.user_id, { cls: 'sm' })}<div class="mid"><b>${esc(nameOf(m.user_id))}${m.user_id === me.id ? ' · ' + t('you') : ''}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username || '')}</small></div>${badge(m.role)}</div>`).join('')}</div>
-${lead ? `<div class="sec flush">${gt('groupSettings')}</div><div class="st-group">${toggle('gSend', gt('sendT'), gt('sendN'), !!c.only_admins_send)}${toggle('gEdit', gt('editT'), gt('editN'), c.only_admins_edit !== false)}${toggle('gAdd', gt('addT'), '', c.only_admins_add !== false)}</div>` : ''}
+  if (kind === 'group') {
+    $('#stTitle').textContent = gt('groupInfo');
+    b.innerHTML = `<div class="pf-head"><button class="pf-photo" ${c.avatar_url ? `data-gphoto="${c.id}"` : ''}>${avatarHtml(c.id, { group: true, cls: 'xxl' })}</button><h2>${esc(c.name)}</h2><small>${gt('groupN', { n: ms.length })}</small></div>
+${c.description || canEdit ? `<div class="st-group">${c.description ? `<div class="gdesc-box">${esc(c.description)}</div>` : ''}${canEdit ? `<button class="st-row" data-gpage="gedit:${c.id}"><span class="st-ic">${ic('edit')}</span><span class="st-label">${gt(c.description ? 'editInfo' : 'addDesc')}</span>${ic('fwd', 'chev')}</button>` : ''}</div>` : ''}
 <div class="st-group">${toggle('gMute', gt('mute'), gt('muteN'), !!meRow.muted)}</div>
-<div class="row"><button value="leave" class="btn ghost danger">${t('leaveGroup')}</button><button value="x" class="btn ghost">${t('close')}</button></div>`, async v => {
-    if (v.startsWith('member:')) return memberMenu(c, v.slice(7));
-    if (v === 'edit') return editGroup(c);
-    if (v === 'add') return addPeople(c);
-    if (v === 'leave') { if (!confirm(mine === 'owner' ? gt('ownerLeave') : t('leaveSure'))) return; await sb.from('members').delete().eq('conversation_id', c.id).eq('user_id', me.id); closeChat(); return loadChats(); }
-  });
-  const body = $('#dlgBody');
-  body.onclick = e => { const r = e.target.closest('[data-gm]'); if (!r) return; const uid = r.dataset.gm; if (uid !== me.id) $('#dlg').close('member:' + uid); };
-  body.onchange = async e => {
-    const id = e.target.id;
-    if (id === 'gMute') { const { error } = await sb.from('members').update({ muted: e.target.checked }).eq('conversation_id', c.id).eq('user_id', me.id); if (error) { e.target.checked = !e.target.checked; return gErr(error); } meRow.muted = e.target.checked; return; }
-    if (!['gSend', 'gEdit', 'gAdd'].includes(id)) return;
-    const s = { s_send: $('#gSend').checked, s_edit: $('#gEdit').checked, s_add: $('#gAdd').checked };
-    const { error } = await sb.rpc('group_set_settings', { c: c.id, ...s }); if (error) { e.target.checked = !e.target.checked; return gErr(error); }
-    Object.assign(c, { only_admins_send: s.s_send, only_admins_edit: s.s_edit, only_admins_add: s.s_add }); if (current && current.id === c.id) Object.assign(current, { only_admins_send: s.s_send, only_admins_edit: s.s_edit, only_admins_add: s.s_add }); lockComposer();
-  };
+${lead ? `<div class="st-sec">${gt('groupSettings')}</div><div class="st-group">${toggle('gSend', gt('sendT'), gt('sendN'), !!c.only_admins_send)}${toggle('gEdit', gt('editT'), gt('editN'), c.only_admins_edit !== false)}${toggle('gAdd', gt('addT'), '', c.only_admins_add !== false)}</div>` : ''}
+<div class="st-sec">${gt('membersN', { n: ms.length })}</div><div class="st-group">
+${canAdd ? `<button class="st-row" data-gpage="gadd:${c.id}"><span class="st-ic">${ic('userPlus')}</span><span class="st-label">${gt('addPeople')}</span></button>` : ''}
+${ms.map(m => `<button class="st-row gmem" data-gm="${m.user_id}">${avatarHtml(m.user_id, { cls: 'sm' })}<span class="st-label"><b>${m.user_id === me.id ? t('you') : esc(nameOf(m.user_id))}</b><small dir="ltr">@${esc((profiles.get(m.user_id) || {}).username || '')}</small></span>${badge(m.role)}</button>`).join('')}</div>
+<div class="st-group"><button class="st-row danger" data-gleave="${c.id}"><span class="st-ic">${ic('out')}</span><span class="st-label">${t('leaveGroup')}</span></button></div>`;
+  }
+  if (kind === 'gedit') {
+    $('#stTitle').textContent = gt('editInfo');
+    b.innerHTML = `<div class="pf-head"><label class="gph">${avatarHtml(c.id, { group: true, cls: 'xxl' })}<input type="file" accept="image/*" id="gPhotoIn" hidden><span class="cam">${ic('camera')}</span></label>
+${c.avatar_url ? `<button class="btn ghost small" id="gDrop">${gt('gNoPhoto')}</button>` : ''}</div>
+<div class="st-group pad"><label class="st-field"><span>${gt('gName')}</span><input id="gNameIn" maxlength="60" value="${esc(c.name || '')}"></label>
+<label class="st-field"><span>${gt('gDesc')}</span><textarea id="gDescIn" maxlength="300" rows="4">${esc(c.description || '')}</textarea></label></div>
+<button class="btn primary gwide" id="gSave" data-g="${c.id}">${t('save')}</button>`;
+    b._gfile = null; b._gdrop = false;
+  }
+  if (kind === 'gadd') {
+    $('#stTitle').textContent = gt('addPeople');
+    const addable = friends.filter(f => f.status === 'accepted').map(f => f.requester === me.id ? f.addressee : f.requester).filter(x => !ms.some(m => m.user_id === x));
+    b.innerHTML = addable.length ? `<p class="st-note">${gt('pickToAdd')}</p><div class="st-group">${addable.map(x => `<label class="st-row gpick">${avatarHtml(x, { cls: 'sm' })}<span class="st-label">${esc(nameOf(x))}</span><input type="checkbox" value="${x}"><i class="gtick">${ic('check')}</i></label>`).join('')}</div>
+<button class="btn primary gwide" id="gAddGo" data-g="${c.id}">${t('add')}</button>` : `<p class="st-note">${gt('noFriendsToAdd')}</p>`;
+  }
 }
-function memberMenu(c, uid) {
-  const mine = roleOf(c, me.id), his = roleOf(c, uid), n = nameOf(uid), opts = [`<button value="profile" class="btn ghost gopt">${gt('viewProfile')}</button>`];
-  if (mine === 'owner') opts.push(`<button value="${his === 'admin' ? 'unlead' : 'lead'}" class="btn ghost gopt">${gt(his === 'admin' ? 'unLeader' : 'makeLeader')}</button>`, `<button value="own" class="btn ghost gopt">${gt('makeOwner')}</button>`);
-  if (his !== 'owner' && (mine === 'owner' || (mine === 'admin' && his === 'member'))) opts.push(`<button value="kick" class="btn ghost danger gopt">${gt('kick')}</button>`);
-  dialog(`<div class="info-head">${avatarHtml(uid, { cls: 'xl' })}<h3>${esc(n)}</h3>${his !== 'member' ? `<span class="gbadge${his === 'owner' ? ' own' : ''}">${gt(his === 'owner' ? 'owner' : 'leader')}</span>` : ''}</div>
-<div class="gopts">${opts.join('')}</div><div class="row"><button value="back" class="btn ghost">${t('close')}</button></div>`, async v => {
-    let r = null;
-    if (v === 'profile') return openSettings('user:' + uid);
-    if (v === 'lead' || v === 'unlead') r = await sb.rpc('group_set_admin', { c: c.id, uid, make: v === 'lead' });
-    else if (v === 'own') { if (!confirm(gt('ownerSure', { n }))) return groupInfo(c); r = await sb.rpc('group_transfer', { c: c.id, uid }); }
-    else if (v === 'kick') { if (!confirm(gt('kickSure', { n }))) return groupInfo(c); r = await sb.rpc('group_remove', { c: c.id, uid }); devsByConv.delete(c.id); }
-    if (r && r.error) gErr(r.error);
-    return refreshGroup(c);
-  });
-}
-function addPeople(c) {
-  const ms = members.get(c.id) || [], addable = friends.filter(f => f.status === 'accepted').map(f => f.requester === me.id ? f.addressee : f.requester).filter(id => !ms.some(m => m.user_id === id));
-  if (!addable.length) { toast(gt('noFriendsToAdd')); return groupInfo(c); }
-  dialog(`<h3>${gt('addPeople')}</h3><p class="muted">${gt('pickToAdd')}</p><div class="scroll">${addable.map(id => `<label class="chk">${avatarHtml(id, { cls: 'sm' })}<span>${esc(nameOf(id))}</span><input type="checkbox" value="${id}"></label>`).join('')}</div>
-<div class="row"><button value="back" class="btn ghost">${t('cancel')}</button><button value="ok" class="btn primary">${t('add')}</button></div>`, async v => {
-    if (v === 'ok') { for (const i of $$('#dlgBody input[type=checkbox]:checked')) { const { error } = await sb.rpc('add_to_group', { c: c.id, uid: i.value }); if (error) { gErr(error); break; } } devsByConv.delete(c.id); }
-    return refreshGroup(c);
-  });
-}
-function editGroup(c) {
-  let file = null, drop = false;
-  dialog(`<h3>${gt('editInfo')}</h3><div class="info-head"><label class="gph">${avatarHtml(c.id, { group: true, cls: 'xxl' })}<input type="file" accept="image/*" id="gPhotoIn" hidden><span class="cam">${ic('camera')}</span></label>
-${c.avatar_url ? `<button type="button" class="btn ghost small" id="gDrop">${gt('gNoPhoto')}</button>` : ''}</div>
-<input id="gNameIn" maxlength="60" value="${esc(c.name || '')}" placeholder="${gt('gName')}"><textarea id="gDescIn" maxlength="300" rows="3" placeholder="${gt('gDesc')}">${esc(c.description || '')}</textarea>
-<div class="row"><button value="back" class="btn ghost">${t('cancel')}</button><button value="ok" class="btn primary">${t('save')}</button></div>`, async v => {
-    if (v !== 'ok') return groupInfo(c);
-    const name = $('#gNameIn').value.trim(), desc = $('#gDescIn').value.trim(); if (!name) { toast(t('needGroupName')); return groupInfo(c); }
-    let url = drop ? '' : (c.avatar_url || '');
+$('#stBody').addEventListener('click', async e => {
+  const pg = e.target.closest('[data-gpage]'); if (pg) return openSettings(pg.dataset.gpage);
+  const top = stPages[stPages.length - 1] || '', c = groupPage(top) ? groupOf(top.split(':')[1]) : null; if (!c) return;
+  const gm = e.target.closest('[data-gm]'); if (gm) { if (gm.dataset.gm !== me.id) memberMenu(c, gm.dataset.gm); return; }
+  if (e.target.closest('[data-gphoto]')) return c.avatar_url && openPhotoUrl(c.avatar_url);
+  if (e.target.closest('[data-gleave]')) { if (!confirm(roleOf(c, me.id) === 'owner' ? gt('ownerLeave') : t('leaveSure'))) return;
+    const { error } = await sb.from('members').delete().eq('conversation_id', c.id).eq('user_id', me.id); if (error) return gErr(error); closeSettings(); if (current && current.id === c.id) closeChat(); return loadChats(); }
+  if (e.target.id === 'gDrop') { const b = $('#stBody'); b._gdrop = true; b._gfile = null; const av = b.querySelector('.gph .av'); av.style.backgroundImage = 'none'; e.target.hidden = true; return; }
+  if (e.target.id === 'gAddGo') { const btn = e.target; btn.disabled = true;
+    for (const i of $$('#stBody .gpick input:checked')) { const { error } = await sb.rpc('add_to_group', { c: c.id, uid: i.value }); if (error) { gErr(error); break; } }
+    devsByConv.delete(c.id); await refreshGroup(c); return history.back(); }
+  if (e.target.id === 'gSave') { const b = $('#stBody'), btn = e.target, name = $('#gNameIn').value.trim(), desc = $('#gDescIn').value.trim(); if (!name) return toast(t('needGroupName'));
+    btn.disabled = true; let url = b._gdrop ? '' : (c.avatar_url || '');
     try {
-      if (file) { const bmp = await createImageBitmap(file), s = Math.min(bmp.width, bmp.height), cv = document.createElement('canvas'); cv.width = cv.height = 512;
+      if (b._gfile) { const bmp = await createImageBitmap(b._gfile), s = Math.min(bmp.width, bmp.height), cv = document.createElement('canvas'); cv.width = cv.height = 512;
         cv.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 512, 512);
         const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .86)), path = `${me.id}/g-${c.id}-${Date.now()}.jpg`;
         const { error } = await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' }); if (error) throw error;
         url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl; }
       const { error } = await sb.rpc('group_set_info', { c: c.id, gname: name, gdesc: desc, gavatar: url }); if (error) throw error;
-      toast(gt('saved'));
-    } catch (x) { gErr(x); }
-    return refreshGroup(c);
+      toast(gt('saved')); await refreshGroup(c); return history.back();
+    } catch (x) { btn.disabled = false; gErr(x); } }
+});
+$('#stBody').addEventListener('change', async e => {
+  const top = stPages[stPages.length - 1] || '', c = groupPage(top) ? groupOf(top.split(':')[1]) : null; if (!c) return; const id = e.target.id;
+  if (id === 'gPhotoIn') { const f = e.target.files[0]; if (!f) return; const b = $('#stBody'); b._gfile = f; b._gdrop = false; const av = b.querySelector('.gph .av'); av.className = 'av xxl'; av.innerHTML = ''; av.style.background = ''; av.style.backgroundImage = `url('${URL.createObjectURL(f)}')`; return; }
+  if (id === 'gMute') { const { error } = await sb.from('members').update({ muted: e.target.checked }).eq('conversation_id', c.id).eq('user_id', me.id); if (error) { e.target.checked = !e.target.checked; return gErr(error); }
+    const r = (members.get(c.id) || []).find(m => m.user_id === me.id); if (r) r.muted = e.target.checked; return; }
+  if (!['gSend', 'gEdit', 'gAdd'].includes(id)) return;
+  const s = { s_send: $('#gSend').checked, s_edit: $('#gEdit').checked, s_add: $('#gAdd').checked };
+  const { error } = await sb.rpc('group_set_settings', { c: c.id, ...s }); if (error) { e.target.checked = !e.target.checked; return gErr(error); }
+  const v = { only_admins_send: s.s_send, only_admins_edit: s.s_edit, only_admins_add: s.s_add }; Object.assign(c, v); if (current && current.id === c.id) Object.assign(current, v); lockComposer();
+});
+function openPhotoUrl(u) { dialog(`<img src="${esc(u)}" alt="" class="gbig"><div class="row"><button value="x" class="btn ghost">${t('close')}</button></div>`); }
+// tapping a member: a small menu from the bottom, like WhatsApp
+function memberMenu(c, uid) {
+  const mine = roleOf(c, me.id), his = roleOf(c, uid), n = nameOf(uid), opts = [`<button value="profile" class="sheet-opt">${ic('user')}<span>${gt('viewProfile')}</span></button>`];
+  if (friends.some(f => f.status === 'accepted' && (f.requester === uid || f.addressee === uid))) opts.push(`<button value="msg" class="sheet-opt">${ic('chat')}<span>${gt('msgPrivate', { n })}</span></button>`);
+  if (mine === 'owner') opts.push(`<button value="${his === 'admin' ? 'unlead' : 'lead'}" class="sheet-opt">${ic('shield')}<span>${gt(his === 'admin' ? 'unLeader' : 'makeLeader')}</span></button>`, `<button value="own" class="sheet-opt">${ic('crown')}<span>${gt('makeOwner')}</span></button>`);
+  if (his !== 'owner' && (mine === 'owner' || (mine === 'admin' && his === 'member'))) opts.push(`<button value="kick" class="sheet-opt danger">${ic('trash')}<span>${gt('kick')}</span></button>`);
+  dialog(`<div class="sheet-head">${avatarHtml(uid, { cls: 'sm' })}<b>${esc(n)}</b>${his !== 'member' ? `<span class="gbadge${his === 'owner' ? ' own' : ''}">${gt(his === 'owner' ? 'owner' : 'leader')}</span>` : ''}</div>${opts.join('')}`, async v => {
+    let r = null;
+    if (v === 'profile') return openSettings('user:' + uid);
+    if (v === 'msg') { const id = await dmWith(uid); return id && goChat(id); }
+    if (v === 'lead' || v === 'unlead') r = await sb.rpc('group_set_admin', { c: c.id, uid, make: v === 'lead' });
+    else if (v === 'own') { if (!confirm(gt('ownerSure', { n }))) return; r = await sb.rpc('group_transfer', { c: c.id, uid }); }
+    else if (v === 'kick') { if (!confirm(gt('kickSure', { n }))) return; r = await sb.rpc('group_remove', { c: c.id, uid }); devsByConv.delete(c.id); }
+    else return;
+    if (r && r.error) gErr(r.error); return refreshGroup(c);
   });
-  $('#gPhotoIn').onchange = e => { file = e.target.files[0] || null; if (!file) return; drop = false; const av = $('#dlgBody .gph .av'); av.className = 'av xxl'; av.innerHTML = ''; av.style.background = ''; av.style.backgroundImage = `url('${URL.createObjectURL(file)}')`; };
-  const d = $('#gDrop'); if (d) d.onclick = () => { drop = true; file = null; const av = $('#dlgBody .gph .av'); av.style.backgroundImage = 'none'; d.hidden = true; };
+  $('#dlg').classList.add('sheet'); const d = $('#dlg'), off = () => { d.classList.remove('sheet'); d.onclick = null; d.removeEventListener('close', off); }; d.addEventListener('close', off);
+  d.onclick = e => { if (e.target === d) d.close(''); };
 }
 
 // ---------- a chat ----------
@@ -941,6 +962,7 @@ async function renderSettings(page) {
   if (page === 'timer') b.innerHTML = `<p class="st-note">${t('timerNote')}</p><div class="st-group">${TIMERS.map(([v, k]) => radio('timer', v, t(k), prefs.msg_timer === v)).join('')}</div>`;
   if (page === 'statusdur') b.innerHTML = `<p class="st-note">${t('statusDurNote')}</p><div class="st-group">${SHOURS.map(([v, k]) => radio('sdur', v, t(k), prefs.status_hours === v)).join('')}</div>`;
   if (page.startsWith('user:')) renderProfile(b, page.slice(5));
+  if (groupPage(page)) renderGroup(b, page.slice(page.indexOf(':') + 1), page.slice(0, page.indexOf(':')));
   if (page === 'about') b.innerHTML = `<div class="st-about"><img src="icon.svg" alt=""><b>همسة · Hamsa</b><span>${t('version', { v: VERSION })}</span><p class="muted">${t('aboutText')}</p><button class="btn ghost" id="updBtn">${t('checkUpdate')}</button></div>`;
 }
 $('#stBody').addEventListener('click', async e => {
